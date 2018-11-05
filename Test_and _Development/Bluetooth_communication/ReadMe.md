@@ -15,9 +15,10 @@ bluetooth module).  Uno pin 8 drives an LED.
 ## Software.
 ### BTserial.ino.
 This folder contains the Arduino code (.ino file) to receive data from the bluetooth module and
-turn the pin 8 LED on and off.  This code was copied from an online source.
+turn the pin 8 LED on and off.  This code was copied from an online source.  The code has been enhanced to send a status message back over
+Bluetooth whenever the LED state is changed.
 ### MIT App Inventor Software.
-Bluetooth_HC06.aia is the source code (AI2) and Bluetooth_HC06.apk is the build file ready to install
+Bluetooth_HC06_withRead.aia is the source code (AI2) and Bluetooth_HC06_withRead.apk is the build file ready to install
 on an Android device that supports bluetooth.
 ## Instructions.
 1. Build the hardware according to the schematic.  
@@ -30,11 +31,13 @@ on an Android device that supports bluetooth.
 5. Open the app and tap the "Choose BT device" button if the associated label shows "not connected".  The
 	HC05 or HC06 device should show in the list picker.  Tap on it to connect.  The label should show
 	"connected".
-6.  The ON button should turn the pin 8 LED on and the OFF button should turn it off.
+6.  The ON button should turn the pin 8 LED on and the OFF button should turn it off.  Initially, “Received Data” should be blank.  When the Bluetooth is connected, the label for “Received Data” should have a
+background color of light blue.  When the LED is turned on, “LED is ON” should show with a yellow background, which then changes to a blue background if no new data is received after 1 second.  When the LED is turned off, “LED is OFF” should show with a yellow background, which then changes to a blue background if no new data is received after 1 second.  
 ## What this test project demonstrates.
 1. Pairing an HC05/06 module with a phone/tablet.
 2. Connecting and HC05/06 module to an Arduino using the SoftwareSerial library.
 3. Arduino receiving a single text character from the bluetooth module using it to perform an action.
-4. Using the Bluetooth Client component in AI2 to connect to an HC05/06 module and send text characters to it.
+4. Using the Bluetooth Client component in AI2 to connect to an HC05/06 module and send/receive text characters to/from it.
+5. Arduino sending a string of text to the Bluetooth module and detecting and receiving that text on the app.
 
 

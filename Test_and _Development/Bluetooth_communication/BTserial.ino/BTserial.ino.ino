@@ -56,11 +56,13 @@ void loop() {
     case '1':
       Serial.println("ON");
       digitalWrite(LEDpin, HIGH);
+      BTserial.print("LED is ON");
       break;
 
     case '0':
       Serial.println("OFF");
       digitalWrite(LEDpin, LOW);
+      BTserial.print("LED is OFF");
       break;
 
     default:
