@@ -36,13 +36,13 @@ void setup() {
   // flash the D13 LED twice to indicate setup is complete
   pinMode(LEDPIN, OUTPUT);
 
-  for(int i = 0; i < 1; i++) {
+  for(int i = 0; i < 2; i++) {
    digitalWrite(LEDPIN, HIGH);
     delay(500); 
     digitalWrite(LEDPIN, LOW);
     delay(500);
   }
-}
+}  // end of setup()
 
 void loop() {
   // run motor A forward at high speed for 1 second
@@ -50,21 +50,60 @@ void loop() {
   delay(1000);
   stop(MOTORA);
   delay(1000);
+
+  // run motor A forward at low speed for 1 second
+  forward(MOTORA, LOW_SPEED);
+  delay(1000);
   stop(MOTORA);
+  delay(1000);
+
+  // run motor A backward at low speed for 1 second
+  backward(MOTORA, LOW_SPEED);
+  delay(1000);
+  stop(MOTORA);
+  delay(1000);
+  
+   // run motor A backward at high speed for 1 second
+  backward(MOTORA, HIGH_SPEED);
+  delay(1000);
+  brake(MOTORA); // hard stop the motor
+  delay(1000);
+
 
    // run motor B forward at high speed for 1 second
   forward(MOTORB, HIGH_SPEED);
   delay(1000);
   stop(MOTORB);
   delay(1000);
-  stop(MOTORB); 
+
+   // run motor B forward at low speed for 1 second
+  forward(MOTORB, LOW_SPEED);
+  delay(1000);
+  stop(MOTORB);
+  delay(1000);
+
+  // run motor B backward at low speed for 1 second
+  backward(MOTORB, LOW_SPEED);
+  delay(1000);
+  stop(MOTORB);
+  delay(1000);
+  
+   // run motor B backward at high speed for 1 second
+  backward(MOTORB, HIGH_SPEED);
+  delay(1000);
+  brake(MOTORB); // hard stop the motor
+  delay(1000);
+
+  // remove power from both motors by stopping them
+  stop(MOTORA);
+  stop(MOTORB);
   
   // stop the loop -- reset to get it going again
   while(true){
   }
-}
+} // end of loop()
 
-
+// function to spin a motor forward
 void forward(int motor, int speed){
   // clamp the speed between 0 and 255
   if(speed < 0){
@@ -72,7 +111,6 @@ void forward(int motor, int speed){
   } else if(speed > 255){
     speed = 255;
   }
-
   // set up a motor to go forward at the indicated speed
   switch(motor){
     case MOTORA:
@@ -89,9 +127,35 @@ void forward(int motor, int speed){
       break;
   }
   return;
-}
+} // end of forward()
 
-// stop a motor
+// function to spin a motor backward
+void backward(int motor, int speed){
+  // clamp the speed between 0 and 255
+  if(speed < 0){
+    speed = 0;
+  } else if(speed > 255){
+    speed = 255;
+  }
+  // set up a motor to go backward at the indicated speed
+  switch(motor){
+    case MOTORA:
+      digitalWrite(AIN1, HIGH);
+      digitalWrite(AIN2, LOW);
+      analogWrite(PWMA, speed);
+      break;     
+    case MOTORB:
+      digitalWrite(BIN1, HIGH);
+      digitalWrite(BIN2, LOW);
+      analogWrite(PWMB, speed);
+      break;    
+    default:
+      break;
+  }
+  return;
+} // end of backward()
+
+// function to stop a motor
 void stop(int motor){
   switch(motor){
     case MOTORA:
@@ -108,4 +172,23 @@ void stop(int motor){
       break;
   }
   return;
-}
+} // end of stop()
+
+// function to brake a motor
+void brake(int motor){
+  switch(motor){
+    case MOTORA:
+      digitalWrite(AIN1, HIGH);
+      digitalWrite(AIN2, HIGH);
+      digitalWrite(PWMA, LOW);
+      break;     
+    case MOTORB:
+      digitalWrite(BIN1, HIGH);
+      digitalWrite(BIN2, HIGH);
+      digitalWrite(PWMB, LOW);
+      break;    
+    default:
+      break;
+  }
+  return;
+} // end of brake()
