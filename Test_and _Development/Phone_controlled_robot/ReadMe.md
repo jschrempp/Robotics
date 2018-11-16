@@ -1,4 +1,5 @@
-# Phone controlled robot.  This project uses a cell phone app to control the robot via Bluetooth commands.  The project uses a combination of the Bluetooth hardware and the motor control hardware that were developed and tested independently in earlier projects.  The Arduino firmware has a set of basic robot control functions (forward, backward, turn right, turn left, stop) which, in turn, use the individual motor control functions developed in one of the earlier projects.
+# Phone controlled robot.  
+This project uses a cell phone app to control the robot via Bluetooth commands.  The project uses a combination of the Bluetooth hardware and the motor control hardware that were developed and tested independently in earlier projects.  The Arduino firmware has a set of basic robot control functions (forward, backward, turn right, turn left, stop) which, in turn, use the individual motor control functions developed in one of the earlier projects.
 ## Hardware.
 The hardware is simply a combination of the motor control hardware and the Bluetooth test hardware.  The schematics for wiring these parts are copied in this folder.  Although the schematics are in separate files, they are compatible with each other and both sets of hardware wiring must be present for this project to work. The following files are used for this project:
 ### Motor_drive_schematic.
