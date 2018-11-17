@@ -24,8 +24,8 @@ const int BIN2 = 3;
 const int MOTORB = 1;
 
   // motor speeds
-const int HIGH_SPEED = 255;
-const int LOW_SPEED = 127;
+const int HIGH_SPEED = 127;
+const int LOW_SPEED = 63;
 
   // LED
 const int LEDpin = 8;
@@ -111,6 +111,20 @@ void loop() {
       robotBack(LOW_SPEED);
       BTserial.print("Robot turns right");
       break;
+      
+    case 'w':  // robot turns leftward at high speed
+      Serial.println("ON");
+      digitalWrite(LEDpin, HIGH);
+      robotFwdLft(HIGH_SPEED);
+      BTserial.print("Robot turns rightward");
+      break;
+
+    case 'e':  // robot turns rightward at high speed
+      Serial.println("ON");
+      digitalWrite(LEDpin, HIGH);
+      robotFwdRgt(HIGH_SPEED);
+      BTserial.print("Robot turns rightward");
+      break;     
 
     case 's':  // robot stops by briefly braking and then romoving motor power
       Serial.println("OFF");
@@ -160,6 +174,20 @@ void robotBack(int speed){
   return;
 }
 
+// function to turn the robot rightward at commanded speed
+void robotFwdRgt(int speed){
+  forward(MOTORA, speed/2);
+  forward(MOTORB, speed);
+  return;
+}
+
+// function to turn the robot leftward at commanded speed
+void robotFwdLft(int speed){
+  forward(MOTORA, speed);
+  forward(MOTORB, speed/2);
+  return;
+}
+  
 // function to stop the robot
 void robotStop(){
   //first apply the brakes
