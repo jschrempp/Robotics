@@ -24,8 +24,8 @@ const int BIN2 = 3;
 const int MOTORB = 1;
 
   // motor speeds
-const int HIGH_SPEED = 127;
-const int LOW_SPEED = 63;
+const int HIGH_SPEED = 200;
+const int LOW_SPEED = 100;
 
   // LED
 const int LEDpin = 8;
