@@ -2,8 +2,8 @@
  *  Robot commands are received via an HC05/06 bluetooth module running at 9600 baud.
  *  
  *  by: Bob Glicksman, Team Practical Projects
- *  version 1.0
- *  11/15/2018
+ *  version 1.1
+ *  11/22/2018
 */
 
 // libraries to include
@@ -25,7 +25,7 @@ const int MOTORB = 1;
 
   // motor speeds
 const int HIGH_SPEED = 200;
-const int LOW_SPEED = 100;
+const int LOW_SPEED = 150;
 
   // LED
 const int LEDpin = 8;
@@ -176,7 +176,7 @@ void robotBack(int speed){
 
 // function to turn the robot rightward at commanded speed
 void robotFwdRgt(int speed){
-  forward(MOTORA, speed/2);
+  forward(MOTORA, speed*0.75);
   forward(MOTORB, speed);
   return;
 }
@@ -184,7 +184,7 @@ void robotFwdRgt(int speed){
 // function to turn the robot leftward at commanded speed
 void robotFwdLft(int speed){
   forward(MOTORA, speed);
-  forward(MOTORB, speed/2);
+  forward(MOTORB, speed*0.75);
   return;
 }
   
