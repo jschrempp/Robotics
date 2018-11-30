@@ -2,8 +2,8 @@
  *  Robot commands are received via an HC05/06 bluetooth module running at 9600 baud.
  *  
  *  by: Bob Glicksman, Team Practical Projects
- *  version 1.1
- *  11/22/2018
+ *  version 1.2
+ *  11/30/2018
 */
 
 // libraries to include
@@ -11,27 +11,31 @@
 #include <SoftwareSerial.h>
 
 // Global definitions
-  // Motor A
+  // Motor A control pins
 const int PWMA = 11;
 const int AIN1 = 12;
 const int AIN2 = 7;
 const int MOTORA = 0;
 
-  // Motor B
+  // Motor B control pins
 const int PWMB = 5;
 const int BIN1 = 2;
 const int BIN2 = 3;
 const int MOTORB = 1;
 
+  // bluetooth serial pins
+const int BT_RX = 10; // received serial data from the bluetooth module Tx pin
+const int BT_TX = 6;  // transmitted data to the bluetooth mosule Rx pint (through a voltage divider)
+
   // motor speeds
 const int HIGH_SPEED = 200;
 const int LOW_SPEED = 150;
 
-  // LED
+  // LED pin
 const int LEDpin = 8;
 
   //create an instance of SoftwareSerial to communicate with the bluetooth module
-SoftwareSerial BTserial(4, 6); // RX , TX
+SoftwareSerial BTserial(BT_RX, BT_TX);
 
 /**************************************************************************
  *  setup() 
@@ -95,28 +99,28 @@ void loop() {
       Serial.println("ON");
       digitalWrite(LEDpin, HIGH);
       robotLeft(LOW_SPEED);
-      BTserial.print("Robot turns left");
+      BTserial.print("Robot pivots left");
       break;
       
     case 'r':  // robot tight turn right at low speed
       Serial.println("ON");
       digitalWrite(LEDpin, HIGH);
       robotRight(LOW_SPEED);
-      BTserial.print("Robot turns right");
+      BTserial.print("Robot piviots right");
       break;
 
     case 'b':  // robot moves backward at low speed
       Serial.println("ON");
       digitalWrite(LEDpin, HIGH);
       robotBack(LOW_SPEED);
-      BTserial.print("Robot turns right");
+      BTserial.print("Robot moves backward");
       break;
       
     case 'w':  // robot turns leftward at high speed
       Serial.println("ON");
       digitalWrite(LEDpin, HIGH);
       robotFwdLft(HIGH_SPEED);
-      BTserial.print("Robot turns rightward");
+      BTserial.print("Robot turns leftward");
       break;
 
     case 'e':  // robot turns rightward at high speed

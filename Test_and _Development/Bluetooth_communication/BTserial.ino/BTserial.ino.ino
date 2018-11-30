@@ -13,7 +13,7 @@
  *
  * See my video at www.youtube.com/c/RalphBacon for more details.
  */
-SoftwareSerial BTserial(4, 6); // RX , TX
+SoftwareSerial BTserial(10, 6); // RX , TX
 
 // Our output indicator (could drive an opto-isolated relay)
 byte LEDpin = 8;
