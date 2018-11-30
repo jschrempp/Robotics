@@ -8,7 +8,7 @@ module communicates with the Arduino using serial asynchronous communication at 
 hardware serial port, this project uses the Arduino SoftwareSerial library to communicate with
 the bluetooth module.  The following files are used for this project:
 ### Bluetooth Test Hardware_schem.
-This is the project schematic in PDF form (created using fritzing).  Uno pin 4 receives serial data
+This is the project schematic in PDF form (created using fritzing).  Uno pin 10 receives serial data
 from the bluetooth module.  Uno pin 6 sends serial data from the Uno to the bluetooth module, using 
 a voltage divider to reduce the voltage to approximately 3.3 volts (for compatibility with the
 bluetooth module).  Uno pin 8 drives an LED.
