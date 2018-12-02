@@ -26,7 +26,7 @@ const int SERVO_FRONT_OFFSET = -10;  // offset to achieve mechanical position of
 const int LEFT_MEASURE_ANGLE = 150; // 60 degrees off to the left of front
 const int RIGHT_MEASURE_ANGLE = 30; // 60 degrees off to the right of front
 const int FRONT_MEASURE_ANGLE = 90; // front
-const float OBSTRUCTION_CLOSE_DISTANCE = 4.0; // 4" away is too close; must stop and turn
+const float OBSTRUCTION_CLOSE_DISTANCE = 8.0; // distance (inches) that is too close; must stop and turn
 
 // Pins
   // sero and ultrasonic rangefined pins
