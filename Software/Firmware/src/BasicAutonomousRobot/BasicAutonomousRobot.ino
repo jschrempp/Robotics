@@ -125,6 +125,7 @@ void loop() {
 
     case 'a': // place the robot in automatic mode. Any other button puts it back in manual mode
       digitalWrite(LEDpin, HIGH);
+      robotForward(LOW_SPEED);  // low speed for safety!
 #ifdef DEBUG
       Serial.println("robot is autonomous");
 #endif      
@@ -222,9 +223,9 @@ void loop() {
     if(frontDistance < OBSTRUCTION_CLOSE_DISTANCE){ // we are too close, sweep the sides to find where clear
       /**** temporarily stop until figure out what to do next ***/
       robotStop();
+      digitalWrite(LEDpin, LOW);
       autoMode = false;
-    }
-    
+    }     
   }
   
 } // end of loop()
