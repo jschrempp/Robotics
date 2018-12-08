@@ -1,32 +1,47 @@
 /* Basic Autonomous Robot: The robot can be controlled manually via an app (Basic Robot Movement) and can also be placed
  *  into autonomous mode.  When in autonomous mode, the robot uses the HC-SR04 ultrasonic range finder to detect an
- *  obsticale in front and then use a servo to ultrasonically scan the surrounding area for an open position.  The robot
- *  then pivots to the open position, reverifies clearance ahead, and moves forward in that direction.
+ *  obsticle in front. If forward movement is obstructed, the robot pivots and measures to find an open path ahead and then
+ *  continues forward on that path until again obstructed or commanded out of the autonomous mode.  The robot delares that it is
+ *  stuck if it cannot find an open path within a predetermined number of pivots/distance measurements.  If the robot is stuck 
+ *  in this manner, it automatically exits autonomous mode and must be commanded manually again via the app.
+ *  
+ *  This version of the robot has one ultrasonic rangefinder mounted on a servo at the front of the robot.  The servo
+ *  is ONLY used to position the ultrasonic sensor dead forward.  It has been decided that two more ultrasonic rangefinders will
+ *  be added to the sides of the robot.  These sensors will be used (in a future version of this firmware) to detect if the robot
+ *  is too close to a wall along the side and will stear the robot away accordingly.  In this version, side wall hit detection
+ *  is NOT implemented.
  *  
  *  by: Bob Glicksman, Team Practical Projects
- *  version 1.0
- *  12/02/2018
+ *  version 1.1
+ *  12/08/2018
 */
 
-#define DEBUG
+//#define DEBUG   // uncomment this line to use serial monitor for debugging
 
 // libraries to include
 #include "Arduino.h"
 #include <SoftwareSerial.h>
 #include <Servo.h>
 
-// Global definitions
+// Global constants
   // motor speeds
 const int HIGH_SPEED = 200;
 const int LOW_SPEED = 150;
+const int SLOW_SPEED = 100; // for tight turns while seeking open space
+
+  // pivot time for searching
+const int PIVOT_TIME = 400; // time in milliseconds to pivot robot while searching
 
   // ultrasonic scan and measurement times
-const int MEASURE_TIME = 400;  // time for position servo to take an ultrasonic measurement
-const int SERVO_FRONT_OFFSET = -10;  // offset to achieve mechanical position of front for angle = 90; your servo may vary.
-const int LEFT_MEASURE_ANGLE = 150; // 60 degrees off to the left of front
-const int RIGHT_MEASURE_ANGLE = 30; // 60 degrees off to the right of front
+const int SERVO_FRONT_OFFSET = -5;  // offset to achieve mechanical position of front for angle = 90; your servo may vary.
 const int FRONT_MEASURE_ANGLE = 90; // front
 const float OBSTRUCTION_CLOSE_DISTANCE = 8.0; // distance (inches) that is too close; must stop and turn
+const float CLEAR_AHEAD = 18; // minimum distance (inches) for robot to be OK to move ahead
+
+  // robot command modes from app
+const int NO_COMMAND = -1;
+const int MANUAL = 0;
+const int AUTO = 1;
 
 // Pins
   // sero and ultrasonic rangefined pins
@@ -56,8 +71,6 @@ const int LEDpin = 8;
 // Global variables
 SoftwareSerial BTserial(BT_RX, BT_TX);  // instance of SoftwareSerial to communicate with the bluetooth module
 Servo sweepServo;  // instance of Servo object to control the untrasonic sweep sero
-bool autoMode;  // false = manual mode; true = autonomous mode
-float leftDistance, frontDistance, rightDistance; // variables to hold the last distances measured
 
 /**************************************************************************
  *  setup() 
@@ -75,12 +88,6 @@ void setup() {
     // LED output pin
   pinMode(LEDpin, OUTPUT);
 
-#ifdef DEBUG
-  // Setup serial monitor communication for use in debugging
-  Serial.begin(9600);
-  Serial.println("Set up complete");
-#endif  
-
   // Set the baud rate of the bluetooth module
   BTserial.begin(9600);
  
@@ -97,16 +104,20 @@ void setup() {
   // center the servo
   sweepServo.write(90 + SERVO_FRONT_OFFSET);
 
-  // set the mode to manual
-  autoMode = false;
-
   // flash the LED twice to indicate setup is complete
   for(int i = 0; i < 2; i++) {
-   digitalWrite(LEDpin, HIGH);
+    digitalWrite(LEDpin, HIGH);
     delay(500); 
     digitalWrite(LEDpin, LOW);
     delay(500);
   }
+
+#ifdef DEBUG
+  // Setup serial monitor communication for use in debugging
+  Serial.begin(9600);
+  Serial.println("Set up complete");
+#endif  
+
 }  // end of setup()
 
 /**************************************************************************
@@ -114,7 +125,62 @@ void setup() {
 ***************************************************************************/
 void loop() {
   
-  // Wait for a character to be received by the bluetooth module
+  static float frontDistance; // the measured distance ahead
+  static int currentMode = MANUAL;  // place in manual mode until commanded otherwise
+  int commandMode;
+
+  commandMode = command(); // look for bluetooth command and process command accordingly
+  switch (commandMode) {
+    case (MANUAL):    // change the current mode to manual
+      currentMode = MANUAL;
+      break;
+    case (AUTO):    // change the current mode to auto
+      currentMode = AUTO;
+      break;
+    case (NO_COMMAND):  // leave current mode as it was
+      break;
+    default:    // leave current mode as it was
+      break;
+  }
+  
+#ifdef DEBUG
+  Serial.print("mode: ");
+  if(currentMode == MANUAL) Serial.println("manual"); else if (currentMode == AUTO) Serial.println("auto"); else Serial.println("undefined");
+#endif
+
+  // process automonomous mode
+  if(currentMode == AUTO){
+    frontDistance = measureDistance();  // take ultrasonic range measurement forward
+
+#ifdef DEBUG
+  Serial.print("measured forward distance: ");
+  Serial.println(frontDistance);
+#endif
+  
+    if(frontDistance < OBSTRUCTION_CLOSE_DISTANCE){ // we are too close, sweep the sides to find where clear
+      int dir = random(2);  // random number between 0 (left) and 1(right)    
+      if (scan(dir)) {   // scan; return true if OK to move forward, false if stuck
+        robotForward(LOW_SPEED);  // it is clear ahead
+      } else {    // we are stuck
+        robotStop();
+        digitalWrite(LEDpin, LOW);
+        currentMode = MANUAL;
+      }     
+    } else {    // clear ahead so move forward
+      robotForward(LOW_SPEED);  // it is clear ahead
+    }
+  }
+  
+} // end of loop()
+
+
+/**************************************************************************
+ *  Function to process bluetooth commands
+***************************************************************************/
+int command() { 
+  static int mode = NO_COMMAND; 
+  
+  // Test if command character received by bluetooth
   if (BTserial.available() > 0) {
 
     // Get the char
@@ -125,12 +191,12 @@ void loop() {
 
     case 'a': // place the robot in automatic mode. Any other button puts it back in manual mode
       digitalWrite(LEDpin, HIGH);
-      robotForward(LOW_SPEED);  // low speed for safety!
+      robotStop();
 #ifdef DEBUG
       Serial.println("robot is autonomous");
 #endif      
       BTserial.print("Robot is autonomous");
-      autoMode = true;
+      mode = AUTO;
       break;
       
     case 'f': // robot forward
@@ -140,27 +206,27 @@ void loop() {
       Serial.println("robot moves forward");
 #endif
       BTserial.print("Robot moves forward");
-      autoMode = false;
+      mode = MANUAL;
       break;
 
-    case 'l':  // robot tight turn left at low speed
+    case 'l':  // robot tight turn left at slow speed
       digitalWrite(LEDpin, HIGH);
-      robotLeft(LOW_SPEED);
+      robotLeft(SLOW_SPEED);
 #ifdef DEBUG
       Serial.println("robot pivots left");
 #endif
       BTserial.print("Robot pivots left");
-      autoMode = false;
+      mode = MANUAL;
       break;
       
-    case 'r':  // robot tight turn right at low speed
+    case 'r':  // robot tight turn right at slow speed
       digitalWrite(LEDpin, HIGH);
-      robotRight(LOW_SPEED);
+      robotRight(SLOW_SPEED);
 #ifdef DEBUG
       Serial.println("robot piviots right");
 #endif
       BTserial.print("Robot piviots right");
-      autoMode = false;
+      mode = MANUAL;
       break;
 
     case 'b':  // robot moves backward at low speed
@@ -170,27 +236,27 @@ void loop() {
       Serial.println("robot moves backward");
 #endif
       BTserial.print("Robot moves backward");
-      autoMode = false;
+      mode = MANUAL;
       break;
       
-    case 'w':  // robot turns leftward at high speed
+    case 'w':  // robot turns leftward at low speed
       digitalWrite(LEDpin, HIGH);
-      robotFwdLft(HIGH_SPEED);
+      robotFwdLft(LOW_SPEED);
 #ifdef DEBUG
       Serial.println("robot turns leftward");
 #endif
       BTserial.print("Robot turns leftward");
-      autoMode = false;
+      mode = MANUAL;
       break;
 
-    case 'e':  // robot turns rightward at high speed
+    case 'e':  // robot turns rightward at low speed
       digitalWrite(LEDpin, HIGH);
-      robotFwdRgt(HIGH_SPEED);
+      robotFwdRgt(LOW_SPEED);
 #ifdef DEBUG
       Serial.println("robot turns rightward");
 #endif
       BTserial.print("Robot turns rightward");
-      autoMode = false;
+      mode = MANUAL;
       break;     
 
     case 's':  // robot stops by briefly braking and then romoving motor power
@@ -200,35 +266,78 @@ void loop() {
       Serial.println("robot brakes then stop");
 #endif
       BTserial.print("Robot brakes then stops");
-      autoMode = false;
+      mode = MANUAL;
       break;
 
     default:
       digitalWrite(LEDpin, LOW);
-      autoMode = false;
+      mode = NO_COMMAND;
 #ifdef DEBUG
       Serial.print("NOT RECOGNISED: ");
       Serial.println(data);
 #endif
       BTserial.print("Error!");
+    }  // end of switch
+  } else {  // no character received
+    mode = NO_COMMAND;
+  }
+  return mode;
+} // end of command processor
+
+
+/**************************************************************************
+ *  Distance measurement and scanning functions  
+***************************************************************************/
+
+// function to measure distance in inches using the ultrasonic rangefinder
+float measureDistance(){
+
+  long duration; // variable to hold the distance measurement in microseconds
+  
+  // Clear the trigger pin
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  
+  // Set the trigger pin HIGH for 10 micro seconds
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+  
+  // Read the echoPin, return the sound wave travel time in microseconds
+  duration = pulseIn(ECHO_PIN, HIGH);
+  
+  // Calculate the distance
+  return duration/74.0/2.0;  // conversion of microseconds to inches
+  
+}  // end of measureDistance()
+
+
+// function to scan for open space ahead by pivoting the robot.  Returns true of OK ahead, false if stuck
+bool scan(int direction) {
+  
+  const int LEFT = 0;   // direction constant; left is 0, right is other 
+  const int MAX_PIVOTS = 5; // declare stuck if exceed this number of pivots
+  int pivotCount = 0;
+  
+  while (pivotCount++ < MAX_PIVOTS) {
+    if (direction == LEFT) {
+      robotLeft(SLOW_SPEED);
+    } else {
+      robotRight(SLOW_SPEED);
     }
+    delay(PIVOT_TIME);
+    robotStop();
+
+    // is it clear ahead?
+    if(measureDistance() >= CLEAR_AHEAD) {
+      return true;  // break out of loop and return that OK to move ahead
+    }    
   }
 
-  // process automonomous mode
-  if(autoMode){
-    // measure distance ahead
-    sweepServo.write(FRONT_MEASURE_ANGLE + SERVO_FRONT_OFFSET);
-    delay(MEASURE_TIME);  // wait for sero to move
-    frontDistance = measureDistance();  // take ultrasonic range measurement forward
-    if(frontDistance < OBSTRUCTION_CLOSE_DISTANCE){ // we are too close, sweep the sides to find where clear
-      /**** temporarily stop until figure out what to do next ***/
-      robotStop();
-      digitalWrite(LEDpin, LOW);
-      autoMode = false;
-    }     
-  }
+  // hit the max number of pivots without finding open space ahead  
+  return false;
   
-} // end of loop()
+}  // end of scan()
 
 /**************************************************************************
  *  Robot Movement Functions 
@@ -381,54 +490,3 @@ void brake(int motor){
   }
   return;
 } // end of brake()
-
-// function to sweep the servo with the ultrasonic range finder to get range front and sides
-void sweep(){
-  // measure distance to the right
-    sweepServo.write(RIGHT_MEASURE_ANGLE + SERVO_FRONT_OFFSET);
-    delay(MEASURE_TIME);  // wait for sero to move
-    rightDistance = measureDistance();  // take ultrasonic range measurement for the right
-
-    // measure distance to the left
-    sweepServo.write(LEFT_MEASURE_ANGLE + SERVO_FRONT_OFFSET);
-    delay(MEASURE_TIME);  // wait for sero to move
-    leftDistance = measureDistance();  // take ultrasonic range measurement for the left
-
-    // measure distance ahead
-    sweepServo.write(FRONT_MEASURE_ANGLE + SERVO_FRONT_OFFSET);
-    delay(MEASURE_TIME);  // wait for sero to move
-    frontDistance = measureDistance();  // take ultrasonic range measurement for the left
-
-#ifdef DEBUG
-    // print to serial monitor for debugging
-    Serial.print("distance left = ");
-    Serial.print(leftDistance);
-    Serial.print("; distance front = ");
-    Serial.print(frontDistance);
-    Serial.print("; distance rignt = "); 
-    Serial.println(rightDistance);   
-#endif    
-  
-}  // end of sweep()
-
-
-// function to measure distance in inches using the ultrasonic rangefinder
-float measureDistance(){
-  long duration; // variable to hold the distance measurement in microseconds
-  
-  // Clear the trigger pin
-  digitalWrite(TRIG_PIN, LOW);
-  delayMicroseconds(2);
-  
-  // Set the trigger pin HIGH for 10 micro seconds
-  digitalWrite(TRIG_PIN, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(TRIG_PIN, LOW);
-  
-  // Read the echoPin, return the sound wave travel time in microseconds
-  duration = pulseIn(ECHO_PIN, HIGH);
-  
-  // Calculate the distance
-  return duration/74.0/2.0;  // conversion of microseconds to inches
-  
-}  // end of measureDistance()
