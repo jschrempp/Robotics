@@ -5,14 +5,13 @@
  *  stuck if it cannot find an open path within a predetermined number of pivots/distance measurements.  If the robot is stuck 
  *  in this manner, it automatically exits autonomous mode and must be commanded manually again via the app.
  *  
- *  This version of the robot has one ultrasonic rangefinder mounted on a servo at the front of the robot.  The servo
- *  is ONLY used to position the ultrasonic sensor dead forward.  It has been decided that two more ultrasonic rangefinders will
- *  be added to the sides of the robot.  These sensors will be used (in a future version of this firmware) to detect if the robot
- *  is too close to a wall along the side and will stear the robot away accordingly.  In this version, side wall hit detection
- *  is NOT implemented.
+ *  This version of the robot has one ultrasonic rangefinder pointed dead forward.  It has been decided that two more ultrasonic 
+ *  rangefinders will be added to the sides of the robot.  These sensors will be used (in a future version of this firmware) 
+ *  to detect if the robot is too close to a wall along the side and will stear the robot away accordingly.  In this version, 
+ *  side wall hit detection is NOT implemented and may cause the robot to stall or try to climb the wall!
  *  
  *  by: Bob Glicksman, Team Practical Projects
- *  version 1.1
+ *  version 1.2
  *  12/08/2018
 */
 
@@ -21,7 +20,6 @@
 // libraries to include
 #include "Arduino.h"
 #include <SoftwareSerial.h>
-#include <Servo.h>
 
 // Global constants
   // motor speeds
@@ -44,8 +42,7 @@ const int MANUAL = 0;
 const int AUTO = 1;
 
 // Pins
-  // sero and ultrasonic rangefined pins
-const int SERVO_PIN = A0;  // servo wiring: attach red wire to Vcc; brown wire to ground; yellow wire to Arduino pin A0
+  // ultrasonic rangefined pins
 const int TRIG_PIN = A1;
 const int ECHO_PIN = A2;
 
@@ -70,7 +67,6 @@ const int LEDpin = 8;
 
 // Global variables
 SoftwareSerial BTserial(BT_RX, BT_TX);  // instance of SoftwareSerial to communicate with the bluetooth module
-Servo sweepServo;  // instance of Servo object to control the untrasonic sweep sero
 
 /**************************************************************************
  *  setup() 
@@ -91,18 +87,12 @@ void setup() {
   // Set the baud rate of the bluetooth module
   BTserial.begin(9600);
  
-  // instantiate the sweep servo
-  sweepServo.attach(SERVO_PIN);
-
   // set up ultrasound module pins
   pinMode(TRIG_PIN, OUTPUT); 
   pinMode(ECHO_PIN, INPUT);
 
   // make sure the robot is stopped
   robotStop();
-
-  // center the servo
-  sweepServo.write(90 + SERVO_FRONT_OFFSET);
 
   // flash the LED twice to indicate setup is complete
   for(int i = 0; i < 2; i++) {
@@ -161,15 +151,18 @@ void loop() {
       int dir = random(2);  // random number between 0 (left) and 1(right)    
       if (scan(dir)) {   // scan; return true if OK to move forward, false if stuck
         robotForward(LOW_SPEED);  // it is clear ahead
-      } else {    // we are stuck
-        robotStop();
+      } 
+      else {    // we are stuck
         digitalWrite(LEDpin, LOW);
         currentMode = MANUAL;
       }     
-    } else {    // clear ahead so move forward
+      
+    } 
+    else {    // clear ahead so move forward
       robotForward(LOW_SPEED);  // it is clear ahead
     }
-  }
+    
+  } // end of auto mode processing
   
 } // end of loop()
 
@@ -335,6 +328,7 @@ bool scan(int direction) {
   }
 
   // hit the max number of pivots without finding open space ahead  
+  robotStop();
   return false;
   
 }  // end of scan()
