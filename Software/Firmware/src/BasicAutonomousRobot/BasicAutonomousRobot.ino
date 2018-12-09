@@ -31,10 +31,8 @@ const int SLOW_SPEED = 100; // for tight turns while seeking open space
 const int PIVOT_TIME = 400; // time in milliseconds to pivot robot while searching
 
   // ultrasonic scan and measurement times
-const int SERVO_FRONT_OFFSET = -5;  // offset to achieve mechanical position of front for angle = 90; your servo may vary.
-const int FRONT_MEASURE_ANGLE = 90; // front
 const float OBSTRUCTION_CLOSE_DISTANCE = 8.0; // distance (inches) that is too close; must stop and turn
-const float CLEAR_AHEAD = 18; // minimum distance (inches) for robot to be OK to move ahead
+const float CLEAR_AHEAD = 18.0; // minimum distance (inches) for robot to be OK to move ahead
 
   // robot command modes from app
 const int NO_COMMAND = -1;
