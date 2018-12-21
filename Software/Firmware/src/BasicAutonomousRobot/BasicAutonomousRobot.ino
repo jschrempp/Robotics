@@ -5,14 +5,28 @@
  *  stuck if it cannot find an open path within a predetermined number of pivots/distance measurements.  If the robot is stuck 
  *  in this manner, it automatically exits autonomous mode and must be commanded manually again via the app.
  *  
- *  This version of the robot has one ultrasonic rangefinder pointed dead forward.  It has been decided that two more ultrasonic 
- *  rangefinders will be added to the sides of the robot.  These sensors will be used (in a future version of this firmware) 
- *  to detect if the robot is too close to a wall along the side and will stear the robot away accordingly.  In this version, 
- *  side wall hit detection is NOT implemented and may cause the robot to stall or try to climb the wall!
+ *  This version of the robot has three ultrasonic rangefinders.  The main one is pointed dead forward.  There is also a rangefinder
+ *  looking to the left (about 45 degrees) and to the right (about 45 degrees).  The left and right rangefinders detect if the robot has
+ *  moved too close to one side.  If so, the robot pivots the other way until the side sensor is cleared.  If the sides are clear,
+ *  the robot tries to move forward and avoids obstacles ahead, as described above.
+ *  
+ *  The micorcontroller used for this project is an Arduino Uno, albeit any Arduino with a standard pinout should be usable.  Pin
+ *  assignements are as follows:
+ *  
+ *  Forward ultrasounic rangefinder:  Trigger pin = A1; echo pin = A2
+ *  Left ultrasounic rangefinder:  Trigger pin = A0; echo pin = A3
+ *  Right ultrasounic rangefinder:  Trigger pin = A4; echo pin = A5
+ *  
+ *  Left motor (motor A):  in1 = pin 12; in 2 = pin 7; PWM = pin 11
+ *  Right motor (motor B):  in1 = pin 2; in 2 = pin 3; PWM = pin 5
+ *  
+ *  Bluetooth module:  Rx = pin 10 (connected to BT module Tx); Tx = pin 6 (connected to BT module Rx)
+ *  
+ *  LED connected to pin 8
  *  
  *  by: Bob Glicksman, Team Practical Projects
- *  version 1.2
- *  12/08/2018
+ *  version 1.3
+ *  12/21/2018
 */
 
 //#define DEBUG   // uncomment this line to use serial monitor for debugging
@@ -26,12 +40,16 @@
 const int HIGH_SPEED = 200;
 const int LOW_SPEED = 150;
 const int SLOW_SPEED = 100; // for tight turns while seeking open space
+const int FORWARD = 2;
+const int LEFT = 0;
+const int RIGHT = 1;
 
   // pivot time for searching
 const int PIVOT_TIME = 400; // time in milliseconds to pivot robot while searching
 
   // ultrasonic scan and measurement times
 const float OBSTRUCTION_CLOSE_DISTANCE = 8.0; // distance (inches) that is too close; must stop and turn
+const float TOO_CLOSE_SIDE = 4.0; // distance (inches) that is too close to a side (left/right) sensor; must stop and turn
 const float CLEAR_AHEAD = 18.0; // minimum distance (inches) for robot to be OK to move ahead
 
   // robot command modes from app
@@ -41,8 +59,12 @@ const int AUTO = 1;
 
 // Pins
   // ultrasonic rangefined pins
-const int TRIG_PIN = A1;
-const int ECHO_PIN = A2;
+const int F_TRIG_PIN = A1;
+const int F_ECHO_PIN = A2;
+const int L_TRIG_PIN = A0;
+const int L_ECHO_PIN = A3;
+const int R_TRIG_PIN = A4;
+const int R_ECHO_PIN = A5;
 
   // Motor A control pins
 const int PWMA = 11;
@@ -86,8 +108,12 @@ void setup() {
   BTserial.begin(9600);
  
   // set up ultrasound module pins
-  pinMode(TRIG_PIN, OUTPUT); 
-  pinMode(ECHO_PIN, INPUT);
+  pinMode(F_TRIG_PIN, OUTPUT); 
+  pinMode(F_ECHO_PIN, INPUT);
+  pinMode(L_TRIG_PIN, OUTPUT); 
+  pinMode(L_ECHO_PIN, INPUT);
+  pinMode(R_TRIG_PIN, OUTPUT); 
+  pinMode(R_ECHO_PIN, INPUT);
 
   // make sure the robot is stopped
   robotStop();
@@ -114,6 +140,8 @@ void setup() {
 void loop() {
   
   static float frontDistance; // the measured distance ahead
+  static float leftDistance;  // the measured clearance to the left
+  static float rightDistance; // the measured clearance to the right
   static int currentMode = MANUAL;  // place in manual mode until commanded otherwise
   int commandMode;
 
@@ -138,13 +166,27 @@ void loop() {
 
   // process automonomous mode
   if(currentMode == AUTO){
-    frontDistance = measureDistance();  // take ultrasonic range measurement forward
+    leftDistance = measureDistance(LEFT); // take ultrasonic range measurement left
+    rightDistance = measureDistance(RIGHT); // take ultrasonic range measurement right
+    frontDistance = measureDistance(FORWARD);  // take ultrasonic range measurement forward
 
 #ifdef DEBUG
   Serial.print("measured forward distance: ");
   Serial.println(frontDistance);
+  Serial.print("measured left distance: ");
+  Serial.println(leftDistance);
+  Serial.print("measured right distance: ");
+  Serial.println(rightDistance);
+  Serial.println();
 #endif
   
+    if(leftDistance < TOO_CLOSE_SIDE) {
+      scan(RIGHT);
+    } else if(rightDistance < TOO_CLOSE_SIDE) {
+      scan(LEFT);
+    }
+      
+    
     if(frontDistance < OBSTRUCTION_CLOSE_DISTANCE){ // we are too close, sweep the sides to find where clear
       int dir = random(2);  // random number between 0 (left) and 1(right)    
       if (scan(dir)) {   // scan; return true if OK to move forward, false if stuck
@@ -281,32 +323,59 @@ int command() {
 ***************************************************************************/
 
 // function to measure distance in inches using the ultrasonic rangefinder
-float measureDistance(){
+float measureDistance(int direction){
 
   long duration; // variable to hold the distance measurement in microseconds
-  
-  // Clear the trigger pin
-  digitalWrite(TRIG_PIN, LOW);
-  delayMicroseconds(2);
-  
-  // Set the trigger pin HIGH for 10 micro seconds
-  digitalWrite(TRIG_PIN, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(TRIG_PIN, LOW);
-  
-  // Read the echoPin, return the sound wave travel time in microseconds
-  duration = pulseIn(ECHO_PIN, HIGH);
-  
+  if(direction == FORWARD) {
+    // Clear the trigger pin
+    digitalWrite(F_TRIG_PIN, LOW);
+    delayMicroseconds(2);
+    
+    // Set the trigger pin HIGH for 10 micro seconds
+    digitalWrite(F_TRIG_PIN, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(F_TRIG_PIN, LOW);
+    
+    // Read the echoPin, return the sound wave travel time in microseconds
+    duration = pulseIn(F_ECHO_PIN, HIGH);
+    
+  } else if(direction == LEFT) {
+    // Clear the trigger pin
+    digitalWrite(L_TRIG_PIN, LOW);
+    delayMicroseconds(2);
+    
+    // Set the trigger pin HIGH for 10 micro seconds
+    digitalWrite(L_TRIG_PIN, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(L_TRIG_PIN, LOW);
+    
+    // Read the echoPin, return the sound wave travel time in microseconds
+    duration = pulseIn(L_ECHO_PIN, HIGH);
+    
+  } else if(direction == RIGHT) {
+    // Clear the trigger pin
+    digitalWrite(R_TRIG_PIN, LOW);
+    delayMicroseconds(2);
+    
+    // Set the trigger pin HIGH for 10 micro seconds
+    digitalWrite(R_TRIG_PIN, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(R_TRIG_PIN, LOW);
+    
+    // Read the echoPin, return the sound wave travel time in microseconds
+    duration = pulseIn(R_ECHO_PIN, HIGH);
+    
+  } else duration = -1;  // INVALID SENSOR CALLED FOR
+    
   // Calculate the distance
-  return duration/74.0/2.0;  // conversion of microseconds to inches
+  return duration/74.0/2.0;  // conversion of microseconds to inches  
   
-}  // end of measureDistance()
+} // end of measureDistance()
 
 
 // function to scan for open space ahead by pivoting the robot.  Returns true of OK ahead, false if stuck
 bool scan(int direction) {
-  
-  const int LEFT = 0;   // direction constant; left is 0, right is other 
+   
   const int MAX_PIVOTS = 5; // declare stuck if exceed this number of pivots
   int pivotCount = 0;
   
@@ -320,7 +389,7 @@ bool scan(int direction) {
     robotStop();
 
     // is it clear ahead?
-    if(measureDistance() >= CLEAR_AHEAD) {
+    if(measureDistance(FORWARD) >= CLEAR_AHEAD) {
       return true;  // break out of loop and return that OK to move ahead
     }    
   }
