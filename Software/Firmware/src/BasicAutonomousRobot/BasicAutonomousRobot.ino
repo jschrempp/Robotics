@@ -25,8 +25,8 @@
  *  LED connected to pin 8
  *  
  *  by: Bob Glicksman, Team Practical Projects
- *  version 1.3
- *  12/21/2018
+ *  version 1.5
+ *  12/23/2018
 */
 
 //#define DEBUG   // uncomment this line to use serial monitor for debugging
@@ -51,6 +51,7 @@ const int PIVOT_TIME = 400; // time in milliseconds to pivot robot while searchi
 const float OBSTRUCTION_CLOSE_DISTANCE = 8.0; // distance (inches) that is too close; must stop and turn
 const float TOO_CLOSE_SIDE = 4.0; // distance (inches) that is too close to a side (left/right) sensor; must stop and turn
 const float CLEAR_AHEAD = 18.0; // minimum distance (inches) for robot to be OK to move ahead
+const unsigned long TIMEOUT = 20000;  // max measurement time is 22 ms (22000 us) or about 11 feet.
 
   // robot command modes from app
 const int NO_COMMAND = -1;
@@ -337,7 +338,10 @@ float measureDistance(int direction){
     digitalWrite(F_TRIG_PIN, LOW);
     
     // Read the echoPin, return the sound wave travel time in microseconds
-    duration = pulseIn(F_ECHO_PIN, HIGH);
+    duration = pulseIn(F_ECHO_PIN, HIGH, TIMEOUT);
+    if(duration == 0) {
+      duration = TIMEOUT; // if it timed out the pulseIn(), set the value to the timeout
+    }
     
   } else if(direction == LEFT) {
     // Clear the trigger pin
@@ -350,7 +354,10 @@ float measureDistance(int direction){
     digitalWrite(L_TRIG_PIN, LOW);
     
     // Read the echoPin, return the sound wave travel time in microseconds
-    duration = pulseIn(L_ECHO_PIN, HIGH);
+    duration = pulseIn(L_ECHO_PIN, HIGH, TIMEOUT);
+    if(duration == 0) {
+      duration = TIMEOUT; // if it timed out the pulseIn(), set the value to the timeout
+    }
     
   } else if(direction == RIGHT) {
     // Clear the trigger pin
@@ -363,7 +370,10 @@ float measureDistance(int direction){
     digitalWrite(R_TRIG_PIN, LOW);
     
     // Read the echoPin, return the sound wave travel time in microseconds
-    duration = pulseIn(R_ECHO_PIN, HIGH);
+    duration = pulseIn(R_ECHO_PIN, HIGH, TIMEOUT);
+    if(duration == 0) {
+      duration = TIMEOUT; // if it timed out the pulseIn(), set the value to the timeout
+    }
     
   } else duration = -1;  // INVALID SENSOR CALLED FOR
     
