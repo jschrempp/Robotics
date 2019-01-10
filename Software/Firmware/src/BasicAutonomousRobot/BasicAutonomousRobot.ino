@@ -118,6 +118,7 @@ void setup() {
 
   // make sure the robot is stopped
   robotStop();
+  BTserial.print("Reset");
 
   // flash the LED twice to indicate setup is complete
   for(int i = 0; i < 2; i++) {
@@ -171,6 +172,8 @@ void loop() {
     rightDistance = measureDistance(RIGHT); // take ultrasonic range measurement right
     frontDistance = measureDistance(FORWARD);  // take ultrasonic range measurement forward
 
+    reportDistance(frontDistance,leftDistance,rightDistance);
+
 #ifdef DEBUG
   Serial.print("measured forward distance: ");
   Serial.println(frontDistance);
@@ -204,6 +207,8 @@ void loop() {
     }
     
   } // end of auto mode processing
+
+
   
 } // end of loop()
 
@@ -229,7 +234,7 @@ int command() {
 #ifdef DEBUG
       Serial.println("robot is autonomous");
 #endif      
-      BTserial.print("Robot is autonomous");
+      BTserial.print("Robot is autonomous|");
       mode = AUTO;
       break;
       
@@ -239,7 +244,7 @@ int command() {
 #ifdef DEBUG
       Serial.println("robot moves forward");
 #endif
-      BTserial.print("Robot moves forward");
+      BTserial.print("Robot moves forward|");
       mode = MANUAL;
       break;
 
@@ -249,7 +254,7 @@ int command() {
 #ifdef DEBUG
       Serial.println("robot pivots left");
 #endif
-      BTserial.print("Robot pivots left");
+      BTserial.print("Robot pivots left|");
       mode = MANUAL;
       break;
       
@@ -259,7 +264,7 @@ int command() {
 #ifdef DEBUG
       Serial.println("robot piviots right");
 #endif
-      BTserial.print("Robot piviots right");
+      BTserial.print("Robot pivots right|");
       mode = MANUAL;
       break;
 
@@ -269,7 +274,7 @@ int command() {
 #ifdef DEBUG
       Serial.println("robot moves backward");
 #endif
-      BTserial.print("Robot moves backward");
+      BTserial.print("Robot moves backward|");
       mode = MANUAL;
       break;
       
@@ -279,7 +284,7 @@ int command() {
 #ifdef DEBUG
       Serial.println("robot turns leftward");
 #endif
-      BTserial.print("Robot turns leftward");
+      BTserial.print("Robot turns leftward|");
       mode = MANUAL;
       break;
 
@@ -289,7 +294,7 @@ int command() {
 #ifdef DEBUG
       Serial.println("robot turns rightward");
 #endif
-      BTserial.print("Robot turns rightward");
+      BTserial.print("Robot turns rightward|");
       mode = MANUAL;
       break;     
 
@@ -297,9 +302,9 @@ int command() {
       digitalWrite(LEDpin, LOW);
       robotStop(); 
 #ifdef DEBUG
-      Serial.println("robot brakes then stop");
+      Serial.println("robot brakes then stop|");
 #endif
-      BTserial.print("Robot brakes then stops");
+      BTserial.print("Robot brakes then stops|");
       mode = MANUAL;
       break;
 
@@ -310,13 +315,39 @@ int command() {
       Serial.print("NOT RECOGNISED: ");
       Serial.println(data);
 #endif
-      BTserial.print("Error!");
+      BTserial.print("Error!|");
     }  // end of switch
   } else {  // no character received
     mode = NO_COMMAND;
   }
   return mode;
 } // end of command processor
+
+
+/**************************************************************************
+ *  Distance Report to Client Application  
+***************************************************************************/
+// function to format Dist string and send to client. This should really be JSON at some point
+void reportDistance(float front, float left, float right) {
+  static unsigned long lastSend = millis();
+  if ((millis() - lastSend) > 500) {
+    // send a Dist string to client
+    String output = "Dist ";
+    output += String(left,2);
+    output += " ";
+    output += String(front,2);
+    output += " ";
+    output += String(right,2);
+    output += "|";
+
+    BTserial.print(output);
+    
+    lastSend = millis();
+  }
+  
+}
+
+
 
 
 /**************************************************************************
