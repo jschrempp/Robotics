@@ -24,9 +24,12 @@
  *  
  *  LED connected to pin 8
  *  
- *  by: Bob Glicksman, Team Practical Projects
- *  version 1.5
- *  12/23/2018
+ *  This version is compatible with AI2 app version 2.0.  This version adds reporting of the measured front and side distances
+ *  back to the app when the robot is in AUTO mode.
+ *  
+ *  by: Bob Glicksman, Jim Schrempp, Team Practical Projects
+ *  version 2.0
+ *  01/10/2018
 */
 
 //#define DEBUG   // uncomment this line to use serial monitor for debugging
