@@ -91,9 +91,7 @@ const int LEDpin = 8;
 
 // Global variables
 SoftwareSerial BTserial(BT_RX, BT_TX);  // instance of SoftwareSerial to communicate with the bluetooth module
-float gfrontDistance; // the measured distance ahead
-float gleftDistance;  // the measured clearance to the left
-float grightDistance; // the measured clearance to the right
+
 
 
 
@@ -151,6 +149,9 @@ void loop() {
   
   static int currentMode = MANUAL;  // place in manual mode until commanded otherwise
   static int notClear = 0; // number of times we have been unable to move forward
+  static float frontDistance; // the measured distance ahead
+  static float leftDistance;  // the measured clearance to the left
+  static float rightDistance; // the measured clearance to the right
   int commandMode;
 
   commandMode = command(); // look for bluetooth command and process command accordingly
@@ -174,11 +175,11 @@ void loop() {
 
   // process automonomous mode
   if(currentMode == AUTO){
-    gleftDistance = measureDistance(LEFT); // take ultrasonic range measurement left
-    grightDistance = measureDistance(RIGHT); // take ultrasonic range measurement right
-    gfrontDistance = measureDistance(FORWARD);  // take ultrasonic range measurement forward
+    leftDistance = measureDistance(LEFT); // take ultrasonic range measurement left
+    rightDistance = measureDistance(RIGHT); // take ultrasonic range measurement right
+    frontDistance = measureDistance(FORWARD);  // take ultrasonic range measurement forward
 
-    reportDistance(gfrontDistance,gleftDistance,grightDistance);
+    reportDistance(frontDistance,leftDistance,rightDistance);
 
 #ifdef DEBUG
   Serial.print("measured forward distance: ");
@@ -190,10 +191,10 @@ void loop() {
   Serial.println();
 #endif
   
-    avoidSide(); // check for obstructions and move robot if needed
-    avoidAhead();
+    avoidSide(leftDistance, rightDistance, frontDistance); // check for obstructions and move robot if needed
+    avoidAhead(leftDistance, rightDistance, frontDistance);
      
-    if(gfrontDistance > OBSTRUCTION_CLOSE_DISTANCE){
+    if(frontDistance > OBSTRUCTION_CLOSE_DISTANCE){
       robotForward(LOW_SPEED);  // it is clear ahead
       notClear = 0;
     } else {
@@ -416,14 +417,14 @@ float measureDistance(int direction){
 
 
 // function to avoid a side obstacle by pivoting away from it
-void avoidSide() {
+void avoidSide(float leftDistance, float rightDistance, float frontDistance) {
 
   int direction = -1;  // -1 (no movement) 0 (left) and 1(right) 
   
   // avoid left or right
-  if (gleftDistance < TOO_CLOSE_SIDE) {
+  if (leftDistance < TOO_CLOSE_SIDE) {
     direction = 1;
-  } else if (grightDistance < TOO_CLOSE_SIDE) {
+  } else if (rightDistance < TOO_CLOSE_SIDE) {
     direction = 0;
   }
   
@@ -443,15 +444,15 @@ void avoidSide() {
 
 
 // function to avoid an ahead obstacle by pivoting the robot.  
-void avoidAhead() {
+void avoidAhead(float leftDistance, float rightDistance, float frontDistance) {
 
   int direction = -1;  // -1 (no movement) 0 (left) and 1(right) 
 
   // if we're too close front
-  if (gfrontDistance < OBSTRUCTION_CLOSE_DISTANCE) { // we are too close, sweep the sides to find where clear
+  if (frontDistance < OBSTRUCTION_CLOSE_DISTANCE) { // we are too close, sweep the sides to find where clear
 
     // head to the side with the most open space
-    if (gleftDistance < grightDistance) {
+    if (leftDistance < rightDistance) {
         direction = 1;
     } else {
         direction = 0;
