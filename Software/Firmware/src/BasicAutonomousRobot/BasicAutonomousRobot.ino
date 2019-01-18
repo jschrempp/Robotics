@@ -28,8 +28,8 @@
  *  back to the app when the robot is in AUTO mode.
  *  
  *  by: Bob Glicksman, Jim Schrempp, Team Practical Projects
- *  version 2.0
- *  01/10/2018
+ *  version 2.1
+ *  01/18/2018
 */
 
 //#define DEBUG   // uncomment this line to use serial monitor for debugging
@@ -360,56 +360,47 @@ void reportDistance(float front, float left, float right) {
 float measureDistance(int direction){
 
   long duration; // variable to hold the distance measurement in microseconds
-  if(direction == FORWARD) {
+  int pinToSense; // the sensor on this pin will be our ping
+  int pinToEcho;  // then sensor on this pin will be our echo
+
+  switch (direction) {
+  case FORWARD:
+    pinToSense = F_TRIG_PIN;
+    pinToEcho = F_ECHO_PIN;
+    break;
+  case LEFT:
+    pinToSense = L_TRIG_PIN;
+    pinToEcho = L_ECHO_PIN;
+    break;
+  case RIGHT:
+    pinToSense = R_TRIG_PIN;
+    pinToEcho = R_ECHO_PIN;
+    break;
+  default:
+    pinToSense = -1;
+  }
+
+  if (pinToSense > -1) {
+
     // Clear the trigger pin
-    digitalWrite(F_TRIG_PIN, LOW);
+    digitalWrite(pinToSense, LOW);
     delayMicroseconds(2);
     
     // Set the trigger pin HIGH for 10 micro seconds
-    digitalWrite(F_TRIG_PIN, HIGH);
+    digitalWrite(pinToSense, HIGH);
     delayMicroseconds(10);
-    digitalWrite(F_TRIG_PIN, LOW);
+    digitalWrite(pinToSense, LOW);
     
     // Read the echoPin, return the sound wave travel time in microseconds
-    duration = pulseIn(F_ECHO_PIN, HIGH, TIMEOUT);
+    duration = pulseIn(pinToEcho, HIGH, TIMEOUT);
     if(duration == 0) {
       duration = TIMEOUT; // if it timed out the pulseIn(), set the value to the timeout
     }
     
-  } else if(direction == LEFT) {
-    // Clear the trigger pin
-    digitalWrite(L_TRIG_PIN, LOW);
-    delayMicroseconds(2);
-    
-    // Set the trigger pin HIGH for 10 micro seconds
-    digitalWrite(L_TRIG_PIN, HIGH);
-    delayMicroseconds(10);
-    digitalWrite(L_TRIG_PIN, LOW);
-    
-    // Read the echoPin, return the sound wave travel time in microseconds
-    duration = pulseIn(L_ECHO_PIN, HIGH, TIMEOUT);
-    if(duration == 0) {
-      duration = TIMEOUT; // if it timed out the pulseIn(), set the value to the timeout
-    }
-    
-  } else if(direction == RIGHT) {
-    // Clear the trigger pin
-    digitalWrite(R_TRIG_PIN, LOW);
-    delayMicroseconds(2);
-    
-    // Set the trigger pin HIGH for 10 micro seconds
-    digitalWrite(R_TRIG_PIN, HIGH);
-    delayMicroseconds(10);
-    digitalWrite(R_TRIG_PIN, LOW);
-    
-    // Read the echoPin, return the sound wave travel time in microseconds
-    duration = pulseIn(R_ECHO_PIN, HIGH, TIMEOUT);
-    if(duration == 0) {
-      duration = TIMEOUT; // if it timed out the pulseIn(), set the value to the timeout
-    }
-    
-  } else duration = -1;  // INVALID SENSOR CALLED FOR
-    
+  } else { 
+    duration = -1;  // INVALID SENSOR CALLED FOR
+  }
+   
   // Calculate the distance
   return duration/74.0/2.0;  // conversion of microseconds to inches  
   
