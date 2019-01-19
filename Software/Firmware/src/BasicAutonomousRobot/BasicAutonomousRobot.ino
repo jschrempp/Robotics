@@ -28,8 +28,15 @@
  *  back to the app when the robot is in AUTO mode.
  *  
  *  by: Bob Glicksman, Jim Schrempp, Team Practical Projects
- *  version 2.1
- *  01/18/2018
+ *  version 2.3 01/19/2019
+ *     Now do ahead check first and only do side check if ahead is clear.
+ *     Now always sense distance after movement, before making any decisions. Avoids some movement loops.
+ *  version 2.2 01/18/2019
+ *     Added random direction when front is too close
+ *     Moved pivot counting into main loop
+ *     checkAhead considers both obstruction close and clear ahead distances
+ *  version 2.1 01/18/2019
+ *     Restructured distancemeasure routine
 */
 
 //#define DEBUG   // uncomment this line to use serial monitor for debugging
@@ -53,7 +60,7 @@ const int PIVOT_TIME = 400; // time in milliseconds to pivot robot while searchi
   // ultrasonic scan and measurement times
 const float OBSTRUCTION_CLOSE_DISTANCE = 8.0; // distance (inches) that is too close; must stop and turn
 const float TOO_CLOSE_SIDE = 4.0; // distance (inches) that is too close to a side (left/right) sensor; must stop and turn
-const float CLEAR_AHEAD = 18.0; // minimum distance (inches) for robot to be OK to move ahead
+const float CLEAR_AHEAD = 12.0; // minimum distance (inches) for robot to be OK to move ahead
 const unsigned long TIMEOUT = 20000;  // max measurement time is 22 ms (22000 us) or about 11 feet.
 
   // robot command modes from app
@@ -190,28 +197,58 @@ void loop() {
   Serial.println(rightDistance);
   Serial.println();
 #endif
-  
-    avoidSide(leftDistance, rightDistance, frontDistance); // check for obstructions and move robot if needed
-    avoidAhead(leftDistance, rightDistance, frontDistance);
-     
-    if(frontDistance > OBSTRUCTION_CLOSE_DISTANCE){
-      robotForward(LOW_SPEED);  // it is clear ahead
-      notClear = 0;
-    } else {
-      notClear++;
-      if (notClear > 5) {
-        // five times here without a way forward, so we stop and go into manual mode
-        notClear = 0;
-        robotStop();
-        currentMode = MANUAL;
-        
+
+    static int numPivots = 0;
+    static int pivotDirection = -1;
+    int checkResult;
+
+    checkResult = checkAhead(leftDistance, rightDistance, frontDistance);
+    switch (checkResult) {
+      case 0: // all clear front, could go fast               
+        checkResult = checkSides(leftDistance, rightDistance, frontDistance); // check for obstructions
+        if (checkResult != -1) {
+           BTserial.print("Side avoidance|"); // This can be removed eventually
+           pivotAway(checkResult);
+        } else {
+           // side and ahead are clear
+           robotForward(LOW_SPEED);
+           numPivots = 0; // reset avoidance pivots becasue we're running now
+        }
+        break;
+      case 1: // close, might go slowly 
+      case 2: // obstruction near by
+      default:
+        // it would be great to get this avoidance moved into a routine, as this is just one avoidance plan.
+        // but if we put it in a routine, how would it know that the avoidance worked and it should
+        // reset the avoidance counter?
+      
+        // we need to pivot
+        if (numPivots > 5) {
+          // we are stuck
+          numPivots = 0;
+          robotStop();
+          currentMode = MANUAL;
+          BTserial.print("Stuck, now manual mode|"); // I don't like printing this here. Would be better to have a state transition place to do this.
+        } else {
+          if (numPivots == 0) {
+            // this is our first pivot away attempt, pick a random direction
+            BTserial.print("forward obstacle, picking random pivot|"); 
+            pivotDirection = random(2);
+            numPivots = 1;
+          } else {
+            // we're going to pivot in the same direction again
+            BTserial.print("forward obstacle, same pivot again|"); 
+            numPivots++;
+          }
+        }
+        pivotAway(pivotDirection);
+        break;
       }
-    }
+
+
     
   } // end of auto mode processing
 
-
-  
 } // end of loop()
 
 
@@ -407,21 +444,32 @@ float measureDistance(int direction){
 } // end of measureDistance()
 
 
-// function to avoid a side obstacle by pivoting away from it
-void avoidSide(float leftDistance, float rightDistance, float frontDistance) {
+// function to check side distance
+// returns:
+//    -1:  both sides clear
+//     0:  right side too close
+//     1:  left side too close
+//     2:  both sides too close
+int checkSides(float leftDistance, float rightDistance, float frontDistance) {
 
-  int direction = -1;  // -1 (no movement) 0 (left) and 1(right) 
+  int direction = -1;
   
   // avoid left or right
   if (leftDistance < TOO_CLOSE_SIDE) {
     direction = 1;
   } else if (rightDistance < TOO_CLOSE_SIDE) {
     direction = 0;
+  } else if (  (leftDistance < TOO_CLOSE_SIDE)  &&  (rightDistance < TOO_CLOSE_SIDE) ) {
+    direction = 2;
   }
-  
+
+  return direction;
+}  // end of checkSides
+
+// function to pivot robot to avoid an obstacle
+//   direction 0:pivotleft   1:pivotright
+void pivotAway(int direction) {
   switch (direction) {
-  case -1:
-    break;
   case 0:
     robotPivotLeft(PIVOT_TIME);
     break;
@@ -431,40 +479,28 @@ void avoidSide(float leftDistance, float rightDistance, float frontDistance) {
   default:
     break;
   }
-}
+} //end of pivotAway
 
 
-// function to avoid an ahead obstacle by pivoting the robot.  
-void avoidAhead(float leftDistance, float rightDistance, float frontDistance) {
+// function to check ahead for obstacle
+// returns:
+//     0:  clear far ahead
+//     1:  clear for a little bit
+//     2:  obstacle ahead
+int checkAhead(float leftDistance, float rightDistance, float frontDistance) {
 
-  int direction = -1;  // -1 (no movement) 0 (left) and 1(right) 
-
+  if (frontDistance > CLEAR_AHEAD) {
+    return 0;
+  }
   // if we're too close front
   if (frontDistance < OBSTRUCTION_CLOSE_DISTANCE) { // we are too close, sweep the sides to find where clear
-
-    // head to the side with the most open space
-    if (leftDistance < rightDistance) {
-        direction = 1;
-    } else {
-        direction = 0;
-    }
- 
-  }
-
-  switch (direction) {
-    case -1:
-      break;
-    case 0:
-      robotPivotLeft(PIVOT_TIME);
-      break;
-    case 1:
-      robotPivotRight(PIVOT_TIME);
-      break;
-    default:
-      break;
-  }
+    return 2;
+  } 
   
-}  // end of avoid()
+  return 1;
+  
+  
+}  // end of checkAhead()
 
 /**************************************************************************
  *  Robot Movement Functions 
@@ -531,7 +567,7 @@ void robotStop(){
   //first apply the brakes
   brake(MOTORA);
   brake(MOTORB);
-  delay(500);
+  delay(100);
 
   // now release the breaks so the motor leads are floating
   stop(MOTORA);
