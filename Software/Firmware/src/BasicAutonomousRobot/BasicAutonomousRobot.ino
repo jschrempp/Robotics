@@ -28,6 +28,9 @@
  *  back to the app when the robot is in AUTO mode.
  *  
  *  by: Bob Glicksman, Jim Schrempp, Team Practical Projects
+ *  version 2.3 01/19/2019
+ *     Now do ahead check first and only do side check if ahead is clear.
+ *     Now always sense distance after movement, before making any decisions. Avoids some movement loops.
  *  version 2.2 01/18/2019
  *     Added random direction when front is too close
  *     Moved pivot counting into main loop
@@ -198,16 +201,19 @@ void loop() {
     static int numPivots = 0;
     static int pivotDirection = -1;
     int checkResult;
-    
-    checkResult = checkSides(leftDistance, rightDistance, frontDistance); // check for obstructions
-    if (checkResult != -1) {BTserial.print("Side avoidance|"); } // This can be removed eventually
-    pivotAway(checkResult);
 
     checkResult = checkAhead(leftDistance, rightDistance, frontDistance);
     switch (checkResult) {
-      case 0: // all clear, could go fast  
-        robotForward(LOW_SPEED);
-        numPivots = 0; // reset avoidance pivots becasue we're running now
+      case 0: // all clear front, could go fast               
+        checkResult = checkSides(leftDistance, rightDistance, frontDistance); // check for obstructions
+        if (checkResult != -1) {
+           BTserial.print("Side avoidance|"); // This can be removed eventually
+           pivotAway(checkResult);
+        } else {
+           // side and ahead are clear
+           robotForward(LOW_SPEED);
+           numPivots = 0; // reset avoidance pivots becasue we're running now
+        }
         break;
       case 1: // close, might go slowly 
       case 2: // obstruction near by
@@ -238,6 +244,8 @@ void loop() {
         pivotAway(pivotDirection);
         break;
       }
+
+
     
   } // end of auto mode processing
 
