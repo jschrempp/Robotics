@@ -28,6 +28,10 @@
  *  back to the app when the robot is in AUTO mode.
  *  
  *  by: Bob Glicksman, Jim Schrempp, Team Practical Projects
+ *  Version 2.4 01/21/2019
+ *     Added a 3ms delay at the end of each ultrasonic sense. Found empiracally that this eliminated ghost "too close"
+ *     measurements in an acoustically challenging environment (my kitchen). No delay would have robot go into avoidance
+ *     on occasion in the middle of the floor with plenty of clear space. With a 3ms delay I never observed this.
  *  version 2.3 01/19/2019
  *     Now do ahead check first and only do side check if ahead is clear.
  *     Now always sense distance after movement, before making any decisions. Avoids some movement loops.
@@ -437,6 +441,8 @@ float measureDistance(int direction){
   } else { 
     duration = -1;  // INVALID SENSOR CALLED FOR
   }
+
+  delay(3);
    
   // Calculate the distance
   return duration/74.0/2.0;  // conversion of microseconds to inches  
