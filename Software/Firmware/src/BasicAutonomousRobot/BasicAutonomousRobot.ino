@@ -213,6 +213,7 @@ void loop() {
         if (checkResult != -1) {
            BTserial.print("Side avoidance|"); // This can be removed eventually
            pivotAway(checkResult);
+           numPivots = 0;
         } else {
            // side and ahead are clear
            robotForward(LOW_SPEED);
@@ -442,7 +443,7 @@ float measureDistance(int direction){
     duration = -1;  // INVALID SENSOR CALLED FOR
   }
 
-  delay(3);
+  //delay(3);
    
   // Calculate the distance
   return duration/74.0/2.0;  // conversion of microseconds to inches  
