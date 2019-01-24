@@ -28,6 +28,10 @@
  *  back to the app when the robot is in AUTO mode.
  *  
  *  by: Bob Glicksman, Jim Schrempp, Team Practical Projects
+ *	Version 2.5 01/23/19
+ *		Removed 3 ms delay between readings due to additional testing.  Set numPivots to zero when ahead is clear but a side
+ *		reading is obstructed.  This way, the Robot can pivot away from the obstruction but if forward path is now blocked, a
+ *		random pivot can take place.
  *  Version 2.4 01/21/2019
  *     Added a 3ms delay at the end of each ultrasonic sense. Found empiracally that this eliminated ghost "too close"
  *     measurements in an acoustically challenging environment (my kitchen). No delay would have robot go into avoidance
