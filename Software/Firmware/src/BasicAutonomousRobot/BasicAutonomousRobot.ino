@@ -28,10 +28,13 @@
  *  back to the app when the robot is in AUTO mode.
  *  
  *  by: Bob Glicksman, Jim Schrempp, Team Practical Projects
- *	Version 2.5 01/23/19
- *		Removed 3 ms delay between readings due to additional testing.  Set numPivots to zero when ahead is clear but a side
- *		reading is obstructed.  This way, the Robot can pivot away from the obstruction but if forward path is now blocked, a
- *		random pivot can take place.
+ *  version 2.5 01/28/2019
+ *     Removed the 3ms delay introduced in 2.4. With sensors positioned at 60 degrees it seems unneeeded (not sure if 
+ *     it was really needed at 45 degrees).
+ *     Added new behavior for two front obstructions: close and near. When close the robot scans instead of pivoting; this
+ *     involves some forward motion. When close the robot pivots as it used to.
+ *     New routines robotFwdTightLeft and robotFwdTightRight move the robot foward slowly but also turning. Use these for
+ *     the pivot from a side obstacle. Had to increase side obstacle distance (TOO_CLOSE_SIDE) to have this work.
  *  Version 2.4 01/21/2019
  *     Added a 3ms delay at the end of each ultrasonic sense. Found empiracally that this eliminated ghost "too close"
  *     measurements in an acoustically challenging environment (my kitchen). No delay would have robot go into avoidance
@@ -64,11 +67,13 @@ const int RIGHT = 1;
 
   // pivot time for searching
 const int PIVOT_TIME = 400; // time in milliseconds to pivot robot while searching
+const int SCAN_LIMIT = 4000; // time in milliseconds to scan before giving up
 
   // ultrasonic scan and measurement times
-const float OBSTRUCTION_CLOSE_DISTANCE = 8.0; // distance (inches) that is too close; must stop and turn
-const float TOO_CLOSE_SIDE = 4.0; // distance (inches) that is too close to a side (left/right) sensor; must stop and turn
-const float CLEAR_AHEAD = 12.0; // minimum distance (inches) for robot to be OK to move ahead
+const float OBSTRUCTION_CLOSE_DISTANCE = 5.0; // distance (inches) that is too close; must stop and turn
+const float CLEAR_AHEAD = 10.0; // minimum distance (inches) for robot to be OK to move ahead
+const float TOO_CLOSE_SIDE = 4.0; // distance (inches) that is too close to a side (left/right) sensor; will stop and pivot.
+const float NEAR_SIDE = 6.0; // distance (inches) that is so close to a side we will turn.
 const unsigned long TIMEOUT = 20000;  // max measurement time is 22 ms (22000 us) or about 11 feet.
 
   // robot command modes from app
@@ -106,9 +111,6 @@ const int LEDpin = 8;
 
 // Global variables
 SoftwareSerial BTserial(BT_RX, BT_TX);  // instance of SoftwareSerial to communicate with the bluetooth module
-
-
-
 
 /**************************************************************************
  *  setup() 
@@ -169,6 +171,8 @@ void loop() {
   static float rightDistance; // the measured clearance to the right
   int commandMode;
 
+  static unsigned long scanStartTime = -1; // time when a scan began to avoid front obstacle; -1 means not scanning now
+
   commandMode = command(); // look for bluetooth command and process command accordingly
   switch (commandMode) {
     case (MANUAL):    // change the current mode to manual
@@ -213,19 +217,64 @@ void loop() {
     checkResult = checkAhead(leftDistance, rightDistance, frontDistance);
     switch (checkResult) {
       case 0: // all clear front, could go fast               
-        checkResult = checkSides(leftDistance, rightDistance, frontDistance); // check for obstructions
+        checkResult = checkSides(leftDistance, rightDistance, frontDistance); // check for side obstructions
         if (checkResult != -1) {
+           // too close on the side
            BTserial.print("Side avoidance|"); // This can be removed eventually
-           pivotAway(checkResult);
-           numPivots = 0;
+           switch (checkResult){
+            case 0:
+              robotFwdTightLeft(LOW_SPEED);
+              break;
+            case 1:
+              robotFwdTightRight(LOW_SPEED);
+              break;
+            case 3:
+              robotPivotLeft(LOW_SPEED);
+              break;
+            case 4:
+              robotPivotRight(LOW_SPEED);
+              break;
+           }
         } else {
            // side and ahead are clear
            robotForward(LOW_SPEED);
-           numPivots = 0; // reset avoidance pivots becasue we're running now
         }
+        // The robot has either pivoted or moved forward, so reset these
+        numPivots = 0; // reset avoidance pivots becasue we're running now
+        scanStartTime = -1; // we are no longer scanning, but moving ahead
         break;
-      case 1: // close, might go slowly 
-      case 2: // obstruction near by
+        
+      case 1: // close ahead, scan to a side
+        // it would be great to get this avoidance moved into a routine, as this is just one avoidance plan.
+        // but if we put it in a routine, how would it know that the avoidance worked and it should
+        // reset the avoidance counter?
+      
+        // we need to scan
+        if (scanStartTime == -1) {
+          // We are starting a scan, pick a random direction
+          BTserial.print("forward close, picking random scan"); 
+          pivotDirection = random(2);
+          scanStartTime = millis();
+          switch (pivotDirection) {
+            case 0:
+              robotFwdTightRight(SLOW_SPEED);
+              break;
+            case 1:
+              robotFwdTightLeft(SLOW_SPEED);
+              break;
+          }
+         } else {
+          if ( (millis() - scanStartTime) > SCAN_LIMIT ) {
+            // we have been scanning for some time but found no way out
+            scanStartTime = -1;
+            numPivots = 0; 
+            robotStop();
+            currentMode = MANUAL;
+            BTserial.print("Stuck scan, now manual mode|"); // I don't like printing this here. Would be better to have a state transition place to do this.
+         }
+        break;
+
+      case 2: // obstruction is near by, need to pivot
       default:
         // it would be great to get this avoidance moved into a routine, as this is just one avoidance plan.
         // but if we put it in a routine, how would it know that the avoidance worked and it should
@@ -235,6 +284,7 @@ void loop() {
         if (numPivots > 5) {
           // we are stuck
           numPivots = 0;
+          scanStartTime = -1;
           robotStop();
           currentMode = MANUAL;
           BTserial.print("Stuck, now manual mode|"); // I don't like printing this here. Would be better to have a state transition place to do this.
@@ -251,10 +301,11 @@ void loop() {
           }
         }
         pivotAway(pivotDirection);
+        scanStartTime = -1;
         break;
+
       }
-
-
+    }
     
   } // end of auto mode processing
 
@@ -446,8 +497,6 @@ float measureDistance(int direction){
   } else { 
     duration = -1;  // INVALID SENSOR CALLED FOR
   }
-
-  //delay(3);
    
   // Calculate the distance
   return duration/74.0/2.0;  // conversion of microseconds to inches  
@@ -458,23 +507,32 @@ float measureDistance(int direction){
 // function to check side distance
 // returns:
 //    -1:  both sides clear
-//     0:  right side too close
-//     1:  left side too close
-//     2:  both sides too close
+//     0:  right side near
+//     1:  left side near
+//     2:  both sides near
+//     3:  right side too close
+//     4:  left side too close
+//     5:  both sides too close
 int checkSides(float leftDistance, float rightDistance, float frontDistance) {
 
-  int direction = -1;
+  int obstacleDetection = -1;
   
   // avoid left or right
-  if (leftDistance < TOO_CLOSE_SIDE) {
-    direction = 1;
+  if (leftDistance < NEAR_SIDE) {
+    obstacleDetection = 1;
+  } else if (leftDistance < TOO_CLOSE_SIDE) {
+    obstacleDetection = 4;
+  } else if (rightDistance < NEAR_SIDE) {
+    obstacleDetection = 0;
   } else if (rightDistance < TOO_CLOSE_SIDE) {
-    direction = 0;
+    obstacleDetection = 3;
+  } else if  (  (leftDistance < NEAR_SIDE)  &&  (rightDistance < NEAR_SIDE) ) {
+    obstacleDetection = 2;
   } else if (  (leftDistance < TOO_CLOSE_SIDE)  &&  (rightDistance < TOO_CLOSE_SIDE) ) {
-    direction = 2;
+    obstacleDetection = 5;
   }
 
-  return direction;
+  return obstacleDetection;
 }  // end of checkSides
 
 // function to pivot robot to avoid an obstacle
@@ -502,14 +560,12 @@ int checkAhead(float leftDistance, float rightDistance, float frontDistance) {
 
   if (frontDistance > CLEAR_AHEAD) {
     return 0;
-  }
-  // if we're too close front
-  if (frontDistance < OBSTRUCTION_CLOSE_DISTANCE) { // we are too close, sweep the sides to find where clear
+  } else if (frontDistance < OBSTRUCTION_CLOSE_DISTANCE) { // we are too close, sweep the sides to find where clear
+    // if we're too close front
     return 2;
-  } 
-  
-  return 1;
-  
+  } else {
+    return 1;
+  }
   
 }  // end of checkAhead()
 
@@ -570,6 +626,20 @@ void robotFwdRgt(int speed){
 void robotFwdLft(int speed){
   forward(MOTORA, speed);
   forward(MOTORB, speed*0.75);
+  return;
+}
+
+// function to turn the robot tight rightward at commanded speed
+void robotFwdTightRight(int speed){
+  forward(MOTORA, speed*0.25);
+  forward(MOTORB, speed);
+  return;
+}
+
+// function to turn the robot tight leftward at commanded speed
+void robotFwdTightLeft(int speed){
+  forward(MOTORA, speed);
+  forward(MOTORB, speed*0.25);
   return;
 }
   
