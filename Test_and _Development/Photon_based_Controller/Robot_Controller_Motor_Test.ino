@@ -1,8 +1,8 @@
 /* Motor Control Test: Exercizes two motors using TB6612 motor control module
  * and shift register for direction control signals.
  *  by: Bob Glicksman, Team Practical Projects
- *  version 1.0
- *  4/13/2019
+ *  version 1.1
+ *  4/14/2019
  * based upon motor test code for the Arduino
  * Motor controls are attached to shift register 1 pins:
  *  BIN2 = QA (pattern = B00000001 = 1)
@@ -16,12 +16,14 @@
  *  Data In = Photon pin D6
  *  SR clock (shift) = Photon pin D5
  *  Register clock (transfer) = Photon pin A0
+ * LED connected to SR pin 7 (QH: pattern = B10000000 = 128) via 3.3 - 5v level shifter
 */
 
 
 // Global definitions
-
 const int delayTime = 1000;
+byte extLED = 128;  // SR1 QH
+
   // Motor A
 const int PWMA = D0;
 byte AIN1 = 4;  // SR1 QC
@@ -69,6 +71,8 @@ void setup() {
 }  // end of setup()
 
 void loop() {
+  static boolean extLEDflag = false;
+  
   // run motor A forward at high speed for 1 second
   forward(MOTORA, HIGH_SPEED);
   delay(delayTime);
@@ -123,6 +127,19 @@ void loop() {
   stop(MOTORA);
   stop(MOTORB);
   delay(delayTime);
+  
+  // toggle the external LED
+  if(extLEDflag == false) {
+      srWrite(extLED, 1);   // turn on the LED
+      digitalWrite(LED_PIN, HIGH);
+      extLEDflag = true;    // toggle the flag
+      delay(delayTime);
+  } else {
+      srWrite(extLED, 0);   // turn off the LED
+      digitalWrite(LED_PIN, LOW);
+      extLEDflag = false;    // toggle the flag
+      delay(delayTime);
+  }
   
 } // end of loop()
 
