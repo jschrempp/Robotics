@@ -30,6 +30,8 @@
  *	back to the app when the robot is in AUTO mode.
  *  
  *	by: Bob Glicksman, Jim Schrempp, Team Practical Projects
+ *  	Version 3.1 8/23/20
+ *      	Added semi-automatic system mode declaration so that robot can operate without WiFi
  *	Version 3.0 8/22/20
  *		Converted Arduino robot code to the Photon based PCB, according to pin definitions above.
  *	Version 2.5 01/23/19
@@ -51,9 +53,11 @@
  *		Restructured distancemeasure routine
 */
 
+// Set the system mode to semi-automatic so that the robot will ruyn even if there is no Wi-Fi
+SYSTEM_MODE(SEMI_AUTOMATIC);
 
 // Global constants
-  // motor speeds
+	// motor speeds
 const int HIGH_SPEED = 200;
 const int LOW_SPEED = 150;
 const int SLOW_SPEED = 100; // for tight turns while seeking open space
@@ -61,16 +65,16 @@ const int FORWARD = 2;
 const int LEFT = 0;
 const int RIGHT = 1;
 
-  // pivot time for searching
+	// pivot time for searching
 const int PIVOT_TIME = 400; // time in milliseconds to pivot robot while searching
 
-  // ultrasonic scan and measurement times
+	// ultrasonic scan and measurement times
 const float OBSTRUCTION_CLOSE_DISTANCE = 8.0; // distance (inches) that is too close; must stop and turn
 const float TOO_CLOSE_SIDE = 4.0; // distance (inches) that is too close to a side (left/right) sensor; must stop and turn
 const float CLEAR_AHEAD = 12.0; // minimum distance (inches) for robot to be OK to move ahead
-const unsigned long TIMEOUT = 20000;  // max measurement time is 22 ms (22000 us) or about 11 feet.
+const unsigned long TIMEOUT = 22000;  // max measurement time is 22 ms (22000 us) or about 11 feet.
 
-  // robot command modes from app
+	// robot command modes from app
 const int NO_COMMAND = -1;
 const int MANUAL_MODE = 0;
 const int AUTO = 1; //robot drives ahead. May enter SCAN mode.
@@ -483,70 +487,70 @@ int checkAhead(float leftDistance, float rightDistance, float frontDistance) {
 
 // function to pivot robot right
 void robotPivotRight(int howLong) {
-  robotRight(SLOW_SPEED);
-  delay(howLong);
-  robotStop();
+	robotRight(SLOW_SPEED);
+	delay(howLong);
+	robotStop();
 }
 
 // function to pivot robot left
 void robotPivotLeft(int howLong) {
-  robotLeft(SLOW_SPEED);
-  delay(howLong);
-  robotStop();
+	robotLeft(SLOW_SPEED);
+	delay(howLong);
+	robotStop();
 }
 
 // function to move robot forward at commanded speed
 void robotForward(int speed){
-  forward(MOTORA, speed);
-  forward(MOTORB, speed);
-  return;
+	forward(MOTORA, speed);
+	forward(MOTORB, speed);
+	return;
 }
 
 // function to turn robot left at commanded speed
 void robotLeft(int speed){
-  forward(MOTORA, speed);
-  backward(MOTORB, speed);
-  return;
+	forward(MOTORA, speed);
+	backward(MOTORB, speed);
+	return;
 }
 
 // function to turn robot right at commanded speed
 void robotRight(int speed){
-  backward(MOTORA, speed);
-  forward(MOTORB, speed);
-  return;
+	backward(MOTORA, speed);
+	forward(MOTORB, speed);
+	return;
 }
 
 // function to move the robot backward at commanded speed
 void robotBack(int speed){
-  backward(MOTORA, speed);
-  backward(MOTORB, speed);
-  return;
+	backward(MOTORA, speed);
+	backward(MOTORB, speed);
+	return;
 }
 
 // function to turn the robot rightward at commanded speed
 void robotFwdRgt(int speed){
-  forward(MOTORA, speed*0.75);
-  forward(MOTORB, speed);
-  return;
+	forward(MOTORA, speed*0.75);
+	forward(MOTORB, speed);
+	return;
 }
 
 // function to turn the robot leftward at commanded speed
 void robotFwdLft(int speed){
-  forward(MOTORA, speed);
-  forward(MOTORB, speed*0.75);
-  return;
+	forward(MOTORA, speed);
+	forward(MOTORB, speed*0.75);
+	return;
 }
   
 // function to stop the robot
 void robotStop(){
-  //first apply the brakes
-  brake(MOTORA);
-  brake(MOTORB);
-  delay(100);
+	//first apply the brakes
+	brake(MOTORA);
+	brake(MOTORB);
+	delay(100);
 
-  // now release the breaks so the motor leads are floating
-  stop(MOTORA);
-  stop(MOTORB);
+	// now release the breaks so the motor leads are floating
+	stop(MOTORA);
+	stop(MOTORB);
 }
 
 /**************************************************************************
@@ -555,92 +559,92 @@ void robotStop(){
 
 // function to spin a motor forward
 void forward(int motor, int speed){
-  // clamp the speed between 0 and 255
-  if(speed < 0){
-    speed = 0;
-  } else if(speed > 255){
-    speed = 255;
-  }
-  // set up a motor to go forward at the indicated speed
-  switch(motor){
-    case MOTORA:
-      srWrite(AIN1, 0);
-      srWrite(AIN2, 1);
-      analogWrite(PWMA, speed);
-      break;     
-    case MOTORB:
-      srWrite(BIN1, 0);
-      srWrite(BIN2, 1);
-      analogWrite(PWMB, speed);
-      break;    
-    default:
-      break;
-  }
-  return;
+	// clamp the speed between 0 and 255
+	if(speed < 0){
+		speed = 0;
+	} else if(speed > 255){
+		speed = 255;
+	}
+	// set up a motor to go forward at the indicated speed
+	switch(motor){
+		case MOTORA:
+			srWrite(AIN1, 0);
+			srWrite(AIN2, 1);
+			analogWrite(PWMA, speed);
+			break;     
+		case MOTORB:
+			srWrite(BIN1, 0);
+			srWrite(BIN2, 1);
+			analogWrite(PWMB, speed);
+			break;    
+		default:
+			break;
+	}
+	return;
 } // end of forward()
 
 // function to spin a motor backward
 void backward(int motor, int speed){
-  // clamp the speed between 0 and 255
-  if(speed < 0){
-    speed = 0;
-  } else if(speed > 255){
-    speed = 255;
-  }
-  // set up a motor to go backward at the indicated speed
-  switch(motor){
-    case MOTORA:
-      srWrite(AIN1, 1);
-      srWrite(AIN2, 0);
-      analogWrite(PWMA, speed);
-      break;     
-    case MOTORB:
-      srWrite(BIN1, 1);
-      srWrite(BIN2, 0);
-      analogWrite(PWMB, speed);
-      break;    
-    default:
-      break;
-  }
-  return;
+	// clamp the speed between 0 and 255
+	if(speed < 0){
+		speed = 0;
+	} else if(speed > 255){
+		speed = 255;
+	}
+	// set up a motor to go backward at the indicated speed
+	switch(motor){
+		case MOTORA:
+			srWrite(AIN1, 1);
+			srWrite(AIN2, 0);
+			analogWrite(PWMA, speed);
+			break;     
+		case MOTORB:
+			srWrite(BIN1, 1);
+			srWrite(BIN2, 0);
+			analogWrite(PWMB, speed);
+			break;    
+		default:
+			break;
+	}
+	return;
 } // end of backward()
 
 // function to stop a motor
 void stop(int motor){
-  switch(motor){
-    case MOTORA:
-      srWrite(AIN1, 0);
-      srWrite(AIN2, 0);
-      digitalWrite(PWMA, HIGH);
-      break;     
-    case MOTORB:
-      srWrite(BIN1, 0);
-      srWrite(BIN2, 0);
-      digitalWrite(PWMB, HIGH);
-      break;    
-    default:
-      break;
-  }
-  return;
+	switch(motor){
+		case MOTORA:
+			srWrite(AIN1, 0);
+			srWrite(AIN2, 0);
+			digitalWrite(PWMA, HIGH);
+			break;     
+		case MOTORB:
+			srWrite(BIN1, 0);
+			srWrite(BIN2, 0);
+			digitalWrite(PWMB, HIGH);
+			break;    
+		default:
+			break;
+	}
+	return;
 } // end of stop()
 
 // function to brake a motor
 void brake(int motor){
-  switch(motor){
-    case MOTORA:
-      srWrite(AIN1, 1);
-      srWrite(AIN2, 1);
-      digitalWrite(PWMA, LOW);
-      break;     
-    case MOTORB:
-      srWrite(BIN1, 1);
-      srWrite(BIN2, 1);
-      digitalWrite(PWMB, LOW);
-      break;    
-    default:
-      break;
-  }
-  return;
+	switch(motor){
+		case MOTORA:
+			srWrite(AIN1, 1);
+			srWrite(AIN2, 1);
+			digitalWrite(PWMA, LOW);
+			break;     
+		case MOTORB:
+			srWrite(BIN1, 1);
+			srWrite(BIN2, 1);
+			digitalWrite(PWMB, LOW);
+			break;    
+		default:
+			break;
+	}
+	return;
 } // end of brake()
 
 /**************************************************************************
@@ -683,4 +687,3 @@ void srClear() {
 	
 	return;
 }	// end of srClear()
-
