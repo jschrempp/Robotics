@@ -30,8 +30,10 @@
  *	back to the app when the robot is in AUTO mode.
  *  
  *	by: Bob Glicksman, Jim Schrempp, Team Practical Projects
+ *  	Version 3.2 8/25/20
+ *      	Added version of pulseIn() with timeout; copied from Particle Community 11/16/16, written by "Ric" 
  *  	Version 3.1 8/23/20
- *      	Added semi-automatic system mode declaration so that robot can operate without WiFi
+ *      Added semi-automatic system mode declaration so that robot can operate without WiFi
  *	Version 3.0 8/22/20
  *		Converted Arduino robot code to the Photon based PCB, according to pin definitions above.
  *	Version 2.5 01/23/19
@@ -72,7 +74,7 @@ const int PIVOT_TIME = 400; // time in milliseconds to pivot robot while searchi
 const float OBSTRUCTION_CLOSE_DISTANCE = 8.0; // distance (inches) that is too close; must stop and turn
 const float TOO_CLOSE_SIDE = 4.0; // distance (inches) that is too close to a side (left/right) sensor; must stop and turn
 const float CLEAR_AHEAD = 12.0; // minimum distance (inches) for robot to be OK to move ahead
-const unsigned long TIMEOUT = 22000;  // max measurement time is 22 ms (22000 us) or about 11 feet.
+const int TIMEOUT = 20;  // max measurement time is 20 ms or about 11 feet.
 
 	// robot command modes from app
 const int NO_COMMAND = -1;
@@ -400,9 +402,13 @@ float measureDistance(int direction){
 		srWrite(pinToSense, 0);
     
 		// Read the echoPin, return the sound wave travel time in microseconds
-		duration = pulseIn(pinToEcho, HIGH);
-		if(duration == 0) {
-			return duration;
+//		duration = pulseIn(pinToEcho, HIGH);
+		
+		duration = rdPulseIn(pinToEcho, HIGH, TIMEOUT);
+		
+		
+		if(duration == 0) { // timeout response
+			return (TIMEOUT*1000)/74.0/2.0; // convert timeout to microsecs and convert to inches
 		}
 		else {
 			return duration/74.0/2.0;  // conversion of microseconds to inches  		
@@ -687,3 +693,37 @@ void srClear() {
 	
 	return;
 }	// end of srClear()
+
+
+/************************************************************************
+ * pulseIn() function with timeout
+ *  Note: the standard Particle pulseIn() does not have a timeout
+ *      parameter and the default is 3 seconds - way too long for us.
+ *      This function was written by Ric and posted to the Particle
+ *      community on Nov 16, 2016.
+*************************************************************************/
+unsigned long rdPulseIn(int pin, int value, int timeout) { // note "timeout" is in milliseocnds
+    
+    unsigned long now = micros();
+    while(pinReadFast(pin) == value) { // wait if pin is already "value" when the function is called, but timeout if it never changes
+        if (micros() - now > (timeout*1000)) {
+            return 0;
+        }
+    }
+    
+    now = micros(); // could delete this line if you want only one timeout period from the start until the actual pulse width timing starts
+    while (pinReadFast(pin) != value) { // pin is "!value", wait for it to change before we start timing, but timeout if it never changes
+        if (micros() - now > (timeout*1000)) { 
+            return 0;
+        }
+    }
+    
+    now = micros();
+    while (pinReadFast(pin) == value) { // start timing the "value" pulse width, but time out if over timeout milliseconds
+        if (micros() - now > (timeout*1000)) {
+            return 0;
+        }
+    }
+    return micros() - now;
+}   // end of rePulseIn()
+
