@@ -30,6 +30,9 @@
  *	back to the app when the robot is in AUTO mode.
  *  
  *	by: Bob Glicksman, Jim Schrempp, Team Practical Projects
+ *		Version 3.3 8/30/2020
+ *			Robot will now alter course to avoid a side obstacle that gets NEAR_SIDE distance away. This
+ *			causes the robot to glide around obstacles before deciding to stop and pivot.
  *  	Version 3.2 8/25/20
  *      	Added version of pulseIn() with timeout; copied from Particle Community 11/16/16, written by "Ric" 
  *  	Version 3.1 8/23/20
@@ -58,6 +61,8 @@
 // Set the system mode to semi-automatic so that the robot will ruyn even if there is no Wi-Fi
 SYSTEM_MODE(SEMI_AUTOMATIC);
 
+#define version 3.3
+
 // Global constants
 	// motor speeds
 const int HIGH_SPEED = 200;
@@ -74,6 +79,7 @@ const int PIVOT_TIME = 400; // time in milliseconds to pivot robot while searchi
 const float OBSTRUCTION_CLOSE_DISTANCE = 8.0; // distance (inches) that is too close; must stop and turn
 const float TOO_CLOSE_SIDE = 4.0; // distance (inches) that is too close to a side (left/right) sensor; must stop and turn
 const float CLEAR_AHEAD = 12.0; // minimum distance (inches) for robot to be OK to move ahead
+const float NEAR_SIDE = 6.0; // distance (inches) that is so close to a side we will turn while moving.
 const int TIMEOUT = 20;  // max measurement time is 20 ms or about 11 feet.
 
 	// robot command modes from app
@@ -110,7 +116,6 @@ const int MOTORB = 1;
 	// LED pin definitions
 const int LEDpin = D7;	// Photon onboard LED
 const int extLED = 128;	// SR1 QH
-
 
 
 /**************************************************************************
@@ -192,18 +197,32 @@ void loop() {
 		checkResult = checkAhead(leftDistance, rightDistance, frontDistance);
 		switch (checkResult) {
 			case 0: // all clear front, could go fast               
-				checkResult = checkSides(leftDistance, rightDistance, frontDistance); // check for obstructions
+				checkResult = checkSides(leftDistance, rightDistance, frontDistance); // check for side obstructions
 				if (checkResult != -1) {
+					// too close on the side
 					Serial1.print("Side avoidance|"); // This can be removed eventually
-					pivotAway(checkResult);
-					numPivots = 0;
-				} 
-				else {
+					switch (checkResult){
+						case 0:
+							robotFwdTightLeft(LOW_SPEED);
+							break;
+						case 1:
+							robotFwdTightRight(LOW_SPEED);
+							break;
+						case 3:
+							robotPivotLeft(LOW_SPEED);
+							break;
+						case 4:
+							robotPivotRight(LOW_SPEED);
+							break;
+					}
+				} else {
 					// side and ahead are clear
 					robotForward(LOW_SPEED);
-					numPivots = 0; // reset avoidance pivots becasue we're running now
 				}
+				// The robot has either pivoted, turned, or moved forward, so reset these
+				numPivots = 0; // reset avoidance pivots becasue we're running now
 				break;
+
 			case 1: // close, might go slowly 
 			case 2: // obstruction near by
 			default:
@@ -424,29 +443,35 @@ float measureDistance(int direction){
 
 
 // function to check side distance
-//	returns:
-//		-1:  both sides clear
-//		0:  right side too close
-//		1:  left side too close
-//		2:  both sides too close
-
+// returns:
+//    -1:  both sides clear
+//     0:  right side near
+//     1:  left side near
+//     2:  both sides near
+//     3:  right side too close
+//     4:  left side too close
+//     5:  both sides too close
 int checkSides(float leftDistance, float rightDistance, float frontDistance) {
-	int direction = -1;
-  
+
+	int obstacleDetection = -1;
+
 	// avoid left or right
-	if (leftDistance < TOO_CLOSE_SIDE) {
-		direction = 1;
-	} 
-	else if (rightDistance < TOO_CLOSE_SIDE) {
-		direction = 0;
-	} 
-	else if (  (leftDistance < TOO_CLOSE_SIDE)  &&  (rightDistance < TOO_CLOSE_SIDE) ) {
-		direction = 2;
+	if (leftDistance < NEAR_SIDE) {
+		obstacleDetection = 1;
+	} else if (leftDistance < TOO_CLOSE_SIDE) {
+		obstacleDetection = 4;
+	} else if (rightDistance < NEAR_SIDE) {
+		obstacleDetection = 0;
+	} else if (rightDistance < TOO_CLOSE_SIDE) {
+		obstacleDetection = 3;
+	} else if  (  (leftDistance < NEAR_SIDE)  &&  (rightDistance < NEAR_SIDE) ) {
+		obstacleDetection = 2;
+	} else if (  (leftDistance < TOO_CLOSE_SIDE)  &&  (rightDistance < TOO_CLOSE_SIDE) ) {
+		obstacleDetection = 5;
 	}
 
-	return direction;
-	
-}  // end of checkSides()
+	return obstacleDetection;
+}  // end of checkSides
 
 // function to pivot robot to avoid an obstacle
 //	direction 0:pivotleft   1:pivotright
@@ -547,6 +572,20 @@ void robotFwdLft(int speed){
 	return;
 }
   
+// function to turn the robot tight rightward at commanded speed
+void robotFwdTightRight(int speed){
+  forward(MOTORA, speed*0.25);
+  forward(MOTORB, speed);
+  return;
+}
+
+// function to turn the robot tight leftward at commanded speed
+void robotFwdTightLeft(int speed){
+  forward(MOTORA, speed);
+  forward(MOTORB, speed*0.25);
+  return;
+}
+
 // function to stop the robot
 void robotStop(){
 	//first apply the brakes
