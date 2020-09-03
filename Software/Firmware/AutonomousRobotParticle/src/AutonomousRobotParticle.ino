@@ -185,7 +185,7 @@ void loop() {
 	//     run the robot without an Android device.
 
 	// DONT CHECK THIS LINE IN 
-	commandMode = AUTO; 
+	// commandMode = AUTO; 
 	
 	switch (commandMode) {
 		case (MANUAL_MODE):    // change the current mode to manual
