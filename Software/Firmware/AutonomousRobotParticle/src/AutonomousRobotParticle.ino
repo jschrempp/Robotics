@@ -30,6 +30,8 @@
  *	back to the app when the robot is in AUTO mode.
  *  
  *	by: Bob Glicksman, Jim Schrempp, Team Practical Projects
+ *		Version 3.4 9/3/2020
+ *			If pin A2 is grounded during boot, then the photon will connect to WiFi and the Particle cloud
  *		Version 3.3 8/30/2020
  *			Robot will now alter course to avoid a side obstacle that gets NEAR_SIDE distance away. This
  *			causes the robot to glide around obstacles before deciding to stop and pivot.
@@ -61,7 +63,7 @@
 // Set the system mode to semi-automatic so that the robot will ruyn even if there is no Wi-Fi
 SYSTEM_MODE(SEMI_AUTOMATIC);
 
-#define version 3.3
+#define version 3.4
 
 // Global constants
 	// motor speeds
@@ -117,6 +119,9 @@ const int MOTORB = 1;
 const int LEDpin = D7;	// Photon onboard LED
 const int extLED = 128;	// SR1 QH
 
+	// Other Pins
+const int WIFI_CONNECT = A2;  // if low photon will connect to WiFi in setup()
+
 
 /**************************************************************************
  *  setup() 
@@ -146,6 +151,12 @@ void setup() {
 	robotStop();
 	Serial1.print("Reset");
 
+	// see if we should connect to the cloud
+	pinMode(WIFI_CONNECT, INPUT_PULLUP);
+	if(digitalRead(WIFI_CONNECT) == LOW) {
+		Particle.connect();
+	}
+
 	// flash the LED twice to indicate setup is complete
 	for(int i = 0; i < 2; i++) {
 		digitalWrite(LEDpin, HIGH);
@@ -169,6 +180,13 @@ void loop() {
 	int commandMode;
 
 	commandMode = command(); // look for bluetooth command and process command accordingly
+	// xxx it would be good to handle this in some way that would allow us to 
+	//     send in a command via the particle console too. This would let me
+	//     run the robot without an Android device.
+
+	// DONT CHECK THIS LINE IN 
+	commandMode = AUTO; 
+	
 	switch (commandMode) {
 		case (MANUAL_MODE):    // change the current mode to manual
 			currentMode = MANUAL_MODE;
