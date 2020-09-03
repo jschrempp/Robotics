@@ -82,7 +82,7 @@ const float OBSTRUCTION_CLOSE_DISTANCE = 8.0; // distance (inches) that is too c
 const float TOO_CLOSE_SIDE = 4.0; // distance (inches) that is too close to a side (left/right) sensor; must stop and turn
 const float CLEAR_AHEAD = 12.0; // minimum distance (inches) for robot to be OK to move ahead
 const float NEAR_SIDE = 6.0; // distance (inches) that is so close to a side we will turn while moving.
-const int TIMEOUT = 20;  // max measurement time is 20 ms or about 11 feet.
+const unsigned int TIMEOUT = 20;  // max measurement time is 20 ms or about 11 feet.
 
 	// robot command modes from app
 const int NO_COMMAND = -1;
@@ -173,7 +173,7 @@ void setup() {
 void loop() {
   
 	static int currentMode = MANUAL_MODE;  // place in manual mode until commanded otherwise
-	static int notClear = 0; // number of times we have been unable to move forward
+	//static int notClear = 0; // number of times we have been unable to move forward
 	static float frontDistance; // the measured distance ahead
 	static float leftDistance;  // the measured clearance to the left
 	static float rightDistance; // the measured clearance to the right
@@ -759,7 +759,7 @@ void srClear() {
  *      This function was written by Ric and posted to the Particle
  *      community on Nov 16, 2016.
 *************************************************************************/
-unsigned long rdPulseIn(int pin, int value, int timeout) { // note "timeout" is in milliseocnds
+unsigned long rdPulseIn(int pin, int value, unsigned int timeout) { // note "timeout" is in milliseocnds
     
     unsigned long now = micros();
     while(pinReadFast(pin) == value) { // wait if pin is already "value" when the function is called, but timeout if it never changes
