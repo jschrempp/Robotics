@@ -227,6 +227,12 @@ void loop() {
 
 		reportDistance(frontDistance,leftDistance,rightDistance);
 
+		// toggle the LED to show that we've completed a distance measure cycle
+		static bool LEDStatus = false;
+		digitalWrite(LEDpin, LEDStatus);
+		LEDStatus = ! LEDStatus;
+
+
 		static int numPivots = 0;
 		static int pivotDirection = -1;
 		int checkResult;
