@@ -33,7 +33,7 @@ This repository contains complete, open source documention for building and oper
 1. The cheap caster wheel that came with the robot kit had a tendency to bind up and send the robot off
 at odd angles.  Our solution was to find a suitable ball caster that replaces the robot kit front wheel.
 
-2. In order for the robot to self-navigate, it needs to take distance measurements to obsticles both in
+2. In order for the robot to self-navigate, it needs to take distance measurements to obstacles both in
 front of the robot and on both sides of the robot.  We tried using a single ultrasonic sensor mounted on a servo but
 we found that the overall measurment cycle was too slow for our purposes.  We opted for using three, fixed
 mounted ultrasonic distance sensors: one in front and two facing to each side of the robot.  These sensors
@@ -42,8 +42,8 @@ are needed in the event that the robot approaches a side wall at a heavily obliq
 we have found that these sensors should face the side somewhere between 45 degrees and 60 degrees from the
 robot's front. 
 
-3. The overall ability of the robot to self-navigate and avoid obsticles is fairly impressive, given the
-limitations of the sensing capability.  The robot has the ability to find a way out from most obsticles,
+3. The overall ability of the robot to self-navigate and avoid obstacles is fairly impressive, given the
+limitations of the sensing capability.  The robot has the ability to find a way out from most obstacles,
 including corners, chair and table legs, etc. Self navigation is not perfect at this point.  In particular,
 the robot pivots on an axis between the rear drive wheels and not the center of the chassis, which results
 in the robot moving a little bit forward as it tries to pivot around to find it's way out of a trap.  A 4 wheel
