@@ -30,6 +30,12 @@
  *	back to the app when the robot is in AUTO mode.
  *  
  *	by: Bob Glicksman, Jim Schrempp, Team Practical Projects
+ *      Version 3.5x 9/11/2020
+ * 			This version will spin in place to avoid a close forward obstacle instead of pivot.
+ * 			It will spin for 10 seconds before giving up.
+ * 			It handles the case of a narrowing corridor pretty well; it finds its way out.
+ * 			There is a behavior in a really tight space where the robot will backup but I'm uncertain
+ * 				how to force the robot into that case.
  *		Version 3.4 9/3/2020
  *			If pin A2 is grounded during boot, then the photon will connect to WiFi and the Particle cloud
  *			If connected to cloud, there is a function Autonomous Mode that can be called from the console or Particle app on
@@ -65,13 +71,14 @@
 // Set the system mode to semi-automatic so that the robot will ruyn even if there is no Wi-Fi
 SYSTEM_MODE(SEMI_AUTOMATIC);
 
-#define version 3.4
+#define version 3.5x
 
 // Global constants
 	// motor speeds
 const int HIGH_SPEED = 200;
 const int LOW_SPEED = 150;
 const int SLOW_SPEED = 100; // for tight turns while seeking open space
+const int CREEP_SPEED = 25; // for use when we are pretty much stuck
 const int FORWARD = 2;
 const int LEFT = 0;
 const int RIGHT = 1;
@@ -195,10 +202,11 @@ void loop() {
   
 	static int currentMode = MANUAL_MODE;  // place in manual mode until commanded otherwise
 	//static int notClear = 0; // number of times we have been unable to move forward
-	static float frontDistance; // the measured distance ahead
-	static float leftDistance;  // the measured clearance to the left
-	static float rightDistance; // the measured clearance to the right
-	int commandMode;
+	static float frontDistance = 0; // the measured distance ahead
+	static float leftDistance = 0;  // the measured clearance to the left
+	static float rightDistance = 0; // the measured clearance to the right
+
+	int commandMode = 0;
 
 	commandMode = command(); // look for bluetooth command and process command accordingly
 
@@ -221,29 +229,38 @@ void loop() {
   
 	// process automonomous mode
 	if(currentMode == AUTO){
+
+		static bool avoidFrontMode = false;
+		static int scanDirection = -1;
+		static unsigned int avoidStartMillis = 0;
+
+		// XXX Why not move these measures and the reportDistance to above this auto
+		//     block so that the application gets to see distance sensing even when not
+		//     in auto mode?
 		leftDistance = measureDistance(LEFT); // take ultrasonic range measurement left
 		rightDistance = measureDistance(RIGHT); // take ultrasonic range measurement right
 		frontDistance = measureDistance(FORWARD);  // take ultrasonic range measurement forward
 
 		reportDistance(frontDistance,leftDistance,rightDistance);
 
-		// toggle the LED to show that we've completed a distance measure cycle
+		// toggle the on board LED to show that we've completed a distance measure cycle
 		static bool LEDStatus = false;
 		digitalWrite(LEDpin, LEDStatus);
 		LEDStatus = ! LEDStatus;
 
+		if (avoidFrontMode > 0) {
+			frontDistance = frontDistance - 4; // we need to find a way out, so let's look for a good long path
+		}
 
-		static int numPivots = 0;
-		static int pivotDirection = -1;
 		int checkResult;
-
 		checkResult = checkAhead(leftDistance, rightDistance, frontDistance);
 		switch (checkResult) {
-			case 0: // all clear front, could go fast               
+			case 0: // clear ahead               
 				checkResult = checkSides(leftDistance, rightDistance, frontDistance); // check for side obstructions
 				if (checkResult != -1) {
 					// too close on the side
-					Serial1.print("Side avoidance|"); // This can be removed eventually
+					String msg = "Avoid S" + String(checkResult) + "|";
+					Serial1.print(msg); // This can be removed eventually
 					switch (checkResult){
 						case 0:
 							robotFwdTightLeft(LOW_SPEED);
@@ -257,28 +274,69 @@ void loop() {
 						case 4:
 							robotPivotRight(LOW_SPEED);
 							break;
+						default:
+							// near or way near both sides	
+							robotBack(SLOW_SPEED);
+							delay(500);
+							robotLeft(CREEP_SPEED);
+							delay(250);
+							// commandMode = MANUAL_MODE;
+							break;
 					}
 				} else {
 					// side and ahead are clear
+					static unsigned int	lastReportGFTime = 0; //only report this once in a while
+					if (millis() - lastReportGFTime > 250) {
+						lastReportGFTime = millis();
+						Serial1.print("Go|"); // This can be removed eventually
+					}
 					robotForward(LOW_SPEED);
+					avoidFrontMode = false; // reset avoidance becasue we're running now
 				}
-				// The robot has either pivoted, turned, or moved forward, so reset these
-				numPivots = 0; // reset avoidance pivots becasue we're running now
+				
 				break;
 
-			case 1: // close, might go slowly 
-			case 2: // obstruction near by
+			case 1: // close ahead, might go slowly 
+			case 2: // obstruction head
 			default:
+
+				if (!avoidFrontMode) { 
+
+					Serial1.print("Avoid F|"); // This can be removed eventually
+					avoidFrontMode = true ;  // will be set to 0 if the robot moves ahead
+
+					avoidStartMillis = millis();
+
+					// first time in avoidance, pick a direction
+					if (leftDistance > rightDistance) {
+						scanDirection = 0;
+					} else {
+						scanDirection =1;
+					}
+				
+				}
+
+				if (millis() - avoidStartMillis > 10000) {
+					// we have been in avoidance mode for 10 seconds
+					robotStop();
+					commandMode = MANUAL_MODE;
+				} else {
+					scanAway(scanDirection);
+				}
+
+				break;
+
+
 				// it would be great to get this avoidance moved into a routine, as this is just one avoidance plan.
 				// but if we put it in a routine, how would it know that the avoidance worked and it should
 				// reset the avoidance counter?
-      
+      /*
 				// we need to pivot
 				if (numPivots > 5) {
 					// we are stuck
 					numPivots = 0;
-          				robotStop();
-          				currentMode = MANUAL_MODE;
+					robotStop();
+					currentMode = MANUAL_MODE;
 					Serial1.print("Stuck, now manual mode|"); // I don't like printing this here. Would be better to have a state transition place to do this.
 				} 
 				else {
@@ -296,6 +354,7 @@ void loop() {
 				}
 				pivotAway(pivotDirection);
 				break;
+		*/
 			}
     
   } // end of auto mode processing
@@ -525,10 +584,26 @@ void pivotAway(int direction) {
 			robotPivotLeft(PIVOT_TIME);
 			break;
 		case 1:
-    			robotPivotRight(PIVOT_TIME);
-    			break;
+			robotPivotRight(PIVOT_TIME);
+			break;
   		default:
-    			break;
+			break;
+  	}
+} //end of pivotAway()
+
+// function to scan robot to avoid an obstacle
+//	direction 0:scan left   1: scan right
+
+void scanAway(int direction) {
+	switch (direction) {
+		case 0:
+			robotLeft(SLOW_SPEED);
+			break;
+		case 1:
+			robotRight(SLOW_SPEED);
+			break;
+  		default:
+			break;
   	}
 } //end of pivotAway()
 
