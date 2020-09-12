@@ -30,6 +30,12 @@
  *	back to the app when the robot is in AUTO mode.
  *  
  *	by: Bob Glicksman, Jim Schrempp, Team Practical Projects
+ *      Version 3.5x 9/11/2020
+ * 			This version will spin in place to avoid a close forward obstacle instead of pivot.
+ * 			It will spin for 10 seconds before giving up.
+ * 			It handles the case of a narrowing corridor pretty well; it finds its way out.
+ * 			There is a behavior in a really tight space where the robot will backup but I'm uncertain
+ * 				how to force the robot into that case.
  *		Version 3.4 9/3/2020
  *			If pin A2 is grounded during boot, then the photon will connect to WiFi and the Particle cloud
  *			If connected to cloud, there is a function Autonomous Mode that can be called from the console or Particle app on
@@ -65,7 +71,7 @@
 // Set the system mode to semi-automatic so that the robot will ruyn even if there is no Wi-Fi
 SYSTEM_MODE(SEMI_AUTOMATIC);
 
-#define version 3.4
+#define version 3.5x
 
 // Global constants
 	// motor speeds
