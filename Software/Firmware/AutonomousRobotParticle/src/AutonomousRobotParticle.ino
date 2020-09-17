@@ -30,6 +30,9 @@
  *	back to the app when the robot is in AUTO mode.
  *  
  *	by: Bob Glicksman, Jim Schrempp, Team Practical Projects
+ *		Version 3.5x2 9/17/2020
+ *			Moved all action reports to reportAction() to allow removal of duplicate seconds
+ *				and standard formatting
  *      Version 3.5x 9/11/2020
  * 			This version will spin in place to avoid a close forward obstacle instead of pivot.
  * 			It will spin for 10 seconds before giving up.
@@ -71,7 +74,7 @@
 // Set the system mode to semi-automatic so that the robot will ruyn even if there is no Wi-Fi
 SYSTEM_MODE(SEMI_AUTOMATIC);
 
-#define version 3.5x
+#define version 3.5x2
 
 // Global constants
 	// motor speeds
@@ -176,7 +179,7 @@ void setup() {
 
 	// make sure the robot is stopped
 	robotStop();
-	Serial1.print("Reset");
+	reportAction("Reset");
 
 	// see if we should connect to the cloud
 	pinMode(WIFI_CONNECT, INPUT_PULLUP);
@@ -259,8 +262,8 @@ void loop() {
 				checkResult = checkSides(leftDistance, rightDistance, frontDistance); // check for side obstructions
 				if (checkResult != -1) {
 					// too close on the side
-					String msg = "Avoid S" + String(checkResult) + "|";
-					Serial1.print(msg); // This can be removed eventually
+					String msg = "Avoid S:" + String(checkResult);
+					reportAction(msg); 
 					switch (checkResult){
 						case 0:
 							robotFwdTightLeft(LOW_SPEED);
@@ -285,11 +288,7 @@ void loop() {
 					}
 				} else {
 					// side and ahead are clear
-					static unsigned int	lastReportGFTime = 0; //only report this once in a while
-					if (millis() - lastReportGFTime > 250) {
-						lastReportGFTime = millis();
-						Serial1.print("Go|"); // This can be removed eventually
-					}
+					reportAction("Go Forward"); 
 					robotForward(LOW_SPEED);
 					avoidFrontMode = false; // reset avoidance becasue we're running now
 				}
@@ -302,7 +301,7 @@ void loop() {
 
 				if (!avoidFrontMode) { 
 
-					Serial1.print("Avoid F|"); // This can be removed eventually
+					reportAction("Avoid F"); 
 					avoidFrontMode = true ;  // will be set to 0 if the robot moves ahead
 
 					avoidStartMillis = millis();
@@ -318,6 +317,7 @@ void loop() {
 
 				if (millis() - avoidStartMillis > 10000) {
 					// we have been in avoidance mode for 10 seconds
+					reportAction("avoid now stops");
 					robotStop();
 					commandMode = MANUAL_MODE;
 				} else {
@@ -326,35 +326,6 @@ void loop() {
 
 				break;
 
-
-				// it would be great to get this avoidance moved into a routine, as this is just one avoidance plan.
-				// but if we put it in a routine, how would it know that the avoidance worked and it should
-				// reset the avoidance counter?
-      /*
-				// we need to pivot
-				if (numPivots > 5) {
-					// we are stuck
-					numPivots = 0;
-					robotStop();
-					currentMode = MANUAL_MODE;
-					Serial1.print("Stuck, now manual mode|"); // I don't like printing this here. Would be better to have a state transition place to do this.
-				} 
-				else {
-					if (numPivots == 0) {
-						// this is our first pivot away attempt, pick a random direction
-						Serial1.print("forward obstacle, picking random pivot|"); 
-						pivotDirection = random(2);
-						numPivots = 1;
-  					} 
-  					else {
-						// we're going to pivot in the same direction again
-						Serial1.print("forward obstacle, same pivot again|"); 
-						numPivots++;
-					}
-				}
-				pivotAway(pivotDirection);
-				break;
-		*/
 			}
     
   } // end of auto mode processing
@@ -381,15 +352,15 @@ int command() {
 				digitalWrite(LEDpin, HIGH);
 				srWrite(extLED, 1);
 				robotStop();
-				Serial1.print("Robot is autonomous|");
-      				mode = AUTO;
-      				break;
+				reportAction("Robot is autonomous");
+				mode = AUTO;
+				break;
       
 			case 'f': // robot forward
 				digitalWrite(LEDpin, HIGH);
 				srWrite(extLED, 1);
 				robotForward(HIGH_SPEED);
-				Serial1.print("Robot moves forward|");
+				reportAction("Robot moves forward");
 				mode = MANUAL_MODE;
 				break;
 
@@ -397,7 +368,7 @@ int command() {
 				digitalWrite(LEDpin, HIGH);
 				srWrite(extLED, 1);
 				robotLeft(SLOW_SPEED);
-				Serial1.print("Robot pivots left|");
+				reportAction("Robot pivots left");
 				mode = MANUAL_MODE;
 				break;
       
@@ -405,7 +376,7 @@ int command() {
 				digitalWrite(LEDpin, HIGH);
 				srWrite(extLED, 1);
 				robotRight(SLOW_SPEED);
-				Serial1.print("Robot pivots right|");
+				reportAction("Robot pivots right");
 				mode = MANUAL_MODE;
 				break;
 
@@ -413,7 +384,7 @@ int command() {
 				digitalWrite(LEDpin, HIGH);
 				srWrite(extLED, 1);
 				robotBack(LOW_SPEED);;
-				Serial1.print("Robot moves backward|");
+				reportAction("Robot moves backward");
 				mode = MANUAL_MODE;
 				break;
       
@@ -421,7 +392,7 @@ int command() {
 				digitalWrite(LEDpin, HIGH);
 				srWrite(extLED, 1);
 				robotFwdLft(LOW_SPEED);
-				Serial1.print("Robot turns leftward|");
+				reportAction("Robot turns leftward");
 				mode = MANUAL_MODE;
 				break;
 
@@ -429,7 +400,7 @@ int command() {
 				digitalWrite(LEDpin, HIGH);
 				srWrite(extLED, 1);
 				robotFwdRgt(LOW_SPEED);
-				Serial1.print("Robot turns rightward|");
+				reportAction("Robot turns rightward");
 				mode = MANUAL_MODE;
 				break;     
 
@@ -437,7 +408,7 @@ int command() {
 				digitalWrite(LEDpin, LOW);
 				srWrite(extLED, 0);
 				robotStop(); 
-				Serial1.print("Robot brakes then stops|");
+				reportAction("Robot brakes then stops");
 				mode = MANUAL_MODE;
 				break;
 
@@ -445,7 +416,7 @@ int command() {
 				digitalWrite(LEDpin, LOW);
 				srWrite(extLED, 0);
 				mode = NO_COMMAND;
-				Serial1.print("Error!|");
+				reportAction("Error!");
 		}  // end of switch
 	} 
 	else {  // no character received
@@ -456,6 +427,28 @@ int command() {
 	
 } // end of command processor
 
+
+/**************************************************************************
+ *	Action Report to Client Application  
+ *		function to format action string and send to client. 
+ *		(This should really be JSON at some point).
+***************************************************************************/
+
+void reportAction(String theAction) {
+	static String lastMsg = "";
+
+	if (lastMsg.indexOf(theAction) >= 0) {
+		// we have already sent that message
+		return;
+	}
+	lastMsg = theAction;
+
+	String output = theAction;
+	output += "|";
+
+	Serial1.print(output);  
+  
+}	// end of reportAction()
 
 /**************************************************************************
  *	Distance Report to Client Application  
@@ -523,10 +516,9 @@ float measureDistance(int direction){
 		srWrite(pinToSense, 0);
     
 		// Read the echoPin, return the sound wave travel time in microseconds
-//		duration = pulseIn(pinToEcho, HIGH);
+		// duration = pulseIn(pinToEcho, HIGH);
 		
 		duration = rdPulseIn(pinToEcho, HIGH, TIMEOUT);
-		
 		
 		if(duration == 0) { // timeout response
 			return (TIMEOUT*1000)/74.0/2.0; // convert timeout to microsecs and convert to inches
