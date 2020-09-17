@@ -49,7 +49,7 @@ the robot pivots on an axis between the rear drive wheels and not the center of 
 in the robot moving a little bit forward as it tries to pivot around to find it's way out of a trap.  A 4 wheel
 robot or a robot based on a tank chassis might obviate this problem.  Alternatively, adding a rear sensor and
 firmware to back the robot out of a jam (in lieu of pivoting the robot to move out of a jam forward) might
-inprove this behavior.
+improve this behavior.
 
 4. The strength of the motors and the size of the drive and caster wheels limit the types of surfaces where the robot
 can operate successfully.  A flat hard surface or a very low pile office carpet work well.  Plush carpet and 
