@@ -30,6 +30,9 @@
  *	back to the app when the robot is in AUTO mode.
  *  
  *	by: Bob Glicksman, Jim Schrempp, Team Practical Projects
+ *		Version 3.6 9/24/2020
+ *			After our avoidance experiments, rewrote the auto loop to be clear and implement
+ *			the behaviors we agreed to.
  *		Version 3.5x2 9/17/2020
  *			Moved all action reports to reportAction() to allow removal of duplicate seconds
  *				and standard formatting
@@ -74,7 +77,7 @@
 // Set the system mode to semi-automatic so that the robot will ruyn even if there is no Wi-Fi
 SYSTEM_MODE(SEMI_AUTOMATIC);
 
-#define version 3.5x2
+#define version 3.6
 
 // Global constants
 	// motor speeds
@@ -234,8 +237,8 @@ void loop() {
 	if(currentMode == AUTO){
 
 		static bool avoidFrontMode = false;
-		static int scanDirection = -1;
-		static unsigned int avoidStartMillis = 0;
+		static int spinDirection = -1;
+		static unsigned int spinStartMillis = 0;
 
 		// XXX Why not move these measures and the reportDistance to above this auto
 		//     block so that the application gets to see distance sensing even when not
@@ -251,82 +254,104 @@ void loop() {
 		digitalWrite(LEDpin, LEDStatus);
 		LEDStatus = ! LEDStatus;
 
-		if (avoidFrontMode > 0) {
-			frontDistance = frontDistance - 4; // we need to find a way out, so let's look for a good long path
+		// decide if we are close on any sensor
+		bool leftSideClear = true;
+		bool rightSideClear = true;
+		bool frontClear = true;
+
+		if (leftDistance < TOO_CLOSE_SIDE) {
+			leftSideClear = false;
+		}
+		if (rightDistance < TOO_CLOSE_SIDE) {
+			rightSideClear = false;
+		}
+		if (frontDistance < OBSTRUCTION_CLOSE_DISTANCE) {
+			frontClear =  false;
 		}
 
-		int checkResult;
-		checkResult = checkAhead(leftDistance, rightDistance, frontDistance);
-		switch (checkResult) {
-			case 0: // clear ahead               
-				checkResult = checkSides(leftDistance, rightDistance, frontDistance); // check for side obstructions
-				if (checkResult != -1) {
-					// too close on the side
-					String msg = "Avoid S:" + String(checkResult);
-					reportAction(msg); 
-					switch (checkResult){
-						case 0:
-							robotFwdTightLeft(LOW_SPEED);
-							break;
-						case 1:
-							robotFwdTightRight(LOW_SPEED);
-							break;
-						case 3:
-							robotPivotLeft(LOW_SPEED);
-							break;
-						case 4:
-							robotPivotRight(LOW_SPEED);
-							break;
-						default:
-							// near or way near both sides	
-							robotBack(SLOW_SPEED);
-							delay(500);
-							robotLeft(CREEP_SPEED);
-							delay(250);
-							// commandMode = MANUAL_MODE;
-							break;
-					}
+		// If front is clear, exit avoid mode
+		avoidFrontMode = false; // reset avoidance becasue we're running now
+
+		// Handle the sensor combinations
+
+		if (leftSideClear && frontClear && rightSideClear) {
+			// side and ahead are clear
+			reportAction("Go Forward"); 
+			robotForward(LOW_SPEED);
+			
+		}
+		else if (leftSideClear && frontClear && !rightSideClear) {
+			// right side close, steer away 
+			reportAction("Steer Left"); 
+			robotFwdTightLeft(LOW_SPEED);
+		}		
+		else if (leftSideClear && !frontClear && rightSideClear) {
+			// front too close, sides open, spin some way
+
+			if (!avoidFrontMode) { 
+
+				reportAction("Avoid front with Scan"); 
+				avoidFrontMode = true ;  // will be set to 0 if the robot moves ahead
+
+				spinStartMillis = millis();
+
+				// first time in avoidance, pick a direction
+				if (leftDistance > rightDistance) {
+					spinDirection = 0;
 				} else {
-					// side and ahead are clear
-					reportAction("Go Forward"); 
-					robotForward(LOW_SPEED);
-					avoidFrontMode = false; // reset avoidance becasue we're running now
+					spinDirection =1;
 				}
-				
-				break;
-
-			case 1: // close ahead, might go slowly 
-			case 2: // obstruction head
-			default:
-
-				if (!avoidFrontMode) { 
-
-					reportAction("Avoid F"); 
-					avoidFrontMode = true ;  // will be set to 0 if the robot moves ahead
-
-					avoidStartMillis = millis();
-
-					// first time in avoidance, pick a direction
-					if (leftDistance > rightDistance) {
-						scanDirection = 0;
-					} else {
-						scanDirection =1;
-					}
-				
-				}
-
-				if (millis() - avoidStartMillis > 10000) {
-					// we have been in avoidance mode for 10 seconds
-					reportAction("avoid now stops");
-					robotStop();
-					commandMode = MANUAL_MODE;
-				} else {
-					scanAway(scanDirection);
-				}
-
-				break;
-
+			
 			}
+
+			if (millis() - spinStartMillis > 10000) {
+				// we have been in avoidance mode for 10 seconds
+				reportAction("Spin now stops");
+				robotStop();
+				commandMode = MANUAL_MODE;
+			} else {
+				spinAway(spinDirection);
+			}
+		}
+		else if (leftSideClear && !frontClear && !rightSideClear) {
+			// left side clear, pivot left 
+			reportAction("Pivot Left"); 
+			robotPivotLeft(LOW_SPEED);
+		}
+		else if (!leftSideClear && frontClear && rightSideClear) {
+			// left side close, steer right 
+			reportAction("Steer Right"); 
+			robotFwdTightRight(LOW_SPEED); 
+		}
+		else if (!leftSideClear && frontClear && !rightSideClear) {
+			// right and left too close, forward slowly 
+			reportAction("Creep Forward"); 
+			robotForward(CREEP_SPEED);
+		}
+		else if (!leftSideClear && !frontClear && rightSideClear) {
+			// right clear, pivot right
+			reportAction("Pivot Right"); 
+			robotPivotRight(LOW_SPEED);
+		}
+		else if (!leftSideClear && !frontClear && !rightSideClear) { 
+			// all sensors blocked, stop	
+						//robotBack(SLOW_SPEED);
+						//delay(500);
+						//robotLeft(CREEP_SPEED);
+						//delay(250);
+			reportAction("Blocked: Stopping"); 
+			robotStop();
+			commandMode = MANUAL_MODE;		
+		}
+		else {
+			reportAction("Error in main loop");
+			robotStop();
+			commandMode = MANUAL_MODE;	
+		}
+
+
+
+
     
   } // end of auto mode processing
 
@@ -536,40 +561,8 @@ float measureDistance(int direction){
 } // end of measureDistance()
 
 
-// function to check side distance
-// returns:
-//    -1:  both sides clear
-//     0:  right side near
-//     1:  left side near
-//     2:  both sides near
-//     3:  right side too close
-//     4:  left side too close
-//     5:  both sides too close
-int checkSides(float leftDistance, float rightDistance, float frontDistance) {
-
-	int obstacleDetection = -1;
-
-	// avoid left or right
-	if (leftDistance < NEAR_SIDE) {
-		obstacleDetection = 1;
-	} else if (leftDistance < TOO_CLOSE_SIDE) {
-		obstacleDetection = 4;
-	} else if (rightDistance < NEAR_SIDE) {
-		obstacleDetection = 0;
-	} else if (rightDistance < TOO_CLOSE_SIDE) {
-		obstacleDetection = 3;
-	} else if  (  (leftDistance < NEAR_SIDE)  &&  (rightDistance < NEAR_SIDE) ) {
-		obstacleDetection = 2;
-	} else if (  (leftDistance < TOO_CLOSE_SIDE)  &&  (rightDistance < TOO_CLOSE_SIDE) ) {
-		obstacleDetection = 5;
-	}
-
-	return obstacleDetection;
-}  // end of checkSides
-
 // function to pivot robot to avoid an obstacle
 //	direction 0:pivotleft   1:pivotright
-
 void pivotAway(int direction) {
 	switch (direction) {
 		case 0:
@@ -586,7 +579,7 @@ void pivotAway(int direction) {
 // function to scan robot to avoid an obstacle
 //	direction 0:scan left   1: scan right
 
-void scanAway(int direction) {
+void spinAway(int direction) {
 	switch (direction) {
 		case 0:
 			robotLeft(SLOW_SPEED);
