@@ -270,8 +270,10 @@ void loop() {
 		}
 
 		// If front is clear, exit avoid mode
-		avoidFrontMode = false; // reset avoidance becasue we're running now
-
+		if (frontClear) {
+			avoidFrontMode = false; // reset avoidance becasue we're running now
+		}
+		
 		// Handle the sensor combinations
 
 		if (leftSideClear && frontClear && rightSideClear) {
