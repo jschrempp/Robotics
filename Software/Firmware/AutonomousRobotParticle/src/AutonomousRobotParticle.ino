@@ -207,6 +207,7 @@ void setup() {
 void loop() {
   
 	static int currentMode = MANUAL_MODE;  // place in manual mode until commanded otherwise
+	static bool avoidFrontMode = false;
 	//static int notClear = 0; // number of times we have been unable to move forward
 	static float frontDistance = 0; // the measured distance ahead
 	static float leftDistance = 0;  // the measured clearance to the left
@@ -226,6 +227,7 @@ void loop() {
 			break;
 		case (AUTO):    // change the current mode to auto
 			currentMode = AUTO;
+			avoidFrontMode = false; // when transitioning into auto, reset this 
 			break;
 		case (NO_COMMAND):  // leave current mode as it was
 			break;
@@ -236,13 +238,9 @@ void loop() {
 	// process automonomous mode
 	if(currentMode == AUTO){
 
-		static bool avoidFrontMode = false;
 		static int spinDirection = -1;
-		static unsigned int spinStartMillis = 0;
 
-		// XXX Why not move these measures and the reportDistance to above this auto
-		//     block so that the application gets to see distance sensing even when not
-		//     in auto mode?
+		// Take measurements
 		leftDistance = measureDistance(LEFT); // take ultrasonic range measurement left
 		rightDistance = measureDistance(RIGHT); // take ultrasonic range measurement right
 		frontDistance = measureDistance(FORWARD);  // take ultrasonic range measurement forward
@@ -259,6 +257,11 @@ void loop() {
 		bool rightSideClear = true;
 		bool frontClear = true;
 
+		if (avoidFrontMode) {
+			frontDistance -= 4; // make object appear closer so we look for a longer way out
+								// keeps robot from oscillating at an obstacle
+		}
+
 		if (leftDistance < TOO_CLOSE_SIDE) {
 			leftSideClear = false;
 		}
@@ -273,7 +276,7 @@ void loop() {
 		if (frontClear) {
 			avoidFrontMode = false; // reset avoidance becasue we're running now
 		}
-		
+
 		// Handle the sensor combinations
 
 		if (leftSideClear && frontClear && rightSideClear) {
@@ -282,79 +285,93 @@ void loop() {
 			robotForward(LOW_SPEED);
 			
 		}
+
 		else if (leftSideClear && frontClear && !rightSideClear) {
 			// right side close, steer away 
 			reportAction("Steer Left"); 
 			robotFwdTightLeft(LOW_SPEED);
-		}		
+		}	
+
 		else if (leftSideClear && !frontClear && rightSideClear) {
 			// front too close, sides open, spin some way
 
 			if (!avoidFrontMode) { 
-
-				reportAction("Avoid front with Scan"); 
-				avoidFrontMode = true ;  // will be set to 0 if the robot moves ahead
-
-				spinStartMillis = millis();
-
-				// first time in avoidance, pick a direction
-				if (leftDistance > rightDistance) {
-					spinDirection = 0;
-				} else {
-					spinDirection =1;
-				}
-			
+				// first time after hitting front blocked with sides clear
+				avoidFrontMode = true ;  // will be set to false when it is clear forward
 			}
 
-			if (millis() - spinStartMillis > 10000) {
-				// we have been in avoidance mode for 10 seconds
-				reportAction("Spin now stops");
-				robotStop();
-				commandMode = MANUAL_MODE;
+			String actionMsg = "Avoid front with spin: ";
+
+			// pick a direction
+			float randomDirection = random(2);
+			if (randomDirection < 1) {
+				spinDirection = 0;
+				actionMsg += "left";
 			} else {
-				spinAway(spinDirection);
+				spinDirection = 1;
+				actionMsg += "right";
 			}
+
+			reportAction(actionMsg); 
+			spinAway(spinDirection);
+			delay(300);
+
 		}
+
 		else if (leftSideClear && !frontClear && !rightSideClear) {
 			// left side clear, pivot left 
 			reportAction("Pivot Left"); 
 			robotPivotLeft(LOW_SPEED);
 		}
+
 		else if (!leftSideClear && frontClear && rightSideClear) {
 			// left side close, steer right 
 			reportAction("Steer Right"); 
 			robotFwdTightRight(LOW_SPEED); 
 		}
+
 		else if (!leftSideClear && frontClear && !rightSideClear) {
-			// right and left too close, forward slowly 
-			reportAction("Creep Forward"); 
-			robotForward(CREEP_SPEED);
+			// trapped, backup and spin
+
+			String actionMsg = "Backup with spin: ";
+						
+			// pick a direction
+			float randomDirection = random(2);
+			if (randomDirection < 1) {
+				spinDirection = 0;
+				actionMsg += "left";
+			} else {
+				spinDirection = 1;
+				actionMsg += "right";
+			}
+			reportAction(actionMsg); 
+
+			robotBack(SLOW_SPEED);
+			delay(2000);
+			spinAway(spinDirection);
+			delay(1000); // spin significantly to get out 
 		}
+
 		else if (!leftSideClear && !frontClear && rightSideClear) {
 			// right clear, pivot right
 			reportAction("Pivot Right"); 
 			robotPivotRight(LOW_SPEED);
 		}
+
 		else if (!leftSideClear && !frontClear && !rightSideClear) { 
 			// all sensors blocked, stop	
-						//robotBack(SLOW_SPEED);
-						//delay(500);
-						//robotLeft(CREEP_SPEED);
-						//delay(250);
+						
 			reportAction("Blocked: Stopping"); 
 			robotStop();
 			commandMode = MANUAL_MODE;		
 		}
+
 		else {
 			reportAction("Error in main loop");
 			robotStop();
 			commandMode = MANUAL_MODE;	
 		}
 
-
-
-
-    
   } // end of auto mode processing
 
 } // end of loop()
