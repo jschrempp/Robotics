@@ -240,9 +240,7 @@ void loop() {
 
 		static int spinDirection = -1;
 
-		// XXX Why not move these measures and the reportDistance to above this auto
-		//     block so that the application gets to see distance sensing even when not
-		//     in auto mode?
+		// Take measurements
 		leftDistance = measureDistance(LEFT); // take ultrasonic range measurement left
 		rightDistance = measureDistance(RIGHT); // take ultrasonic range measurement right
 		frontDistance = measureDistance(FORWARD);  // take ultrasonic range measurement forward
@@ -254,15 +252,15 @@ void loop() {
 		digitalWrite(LEDpin, LEDStatus);
 		LEDStatus = ! LEDStatus;
 
-		if (avoidFrontMode) {
-			frontDistance -= 4; // make object appear closer so we look for a longer way out
-								// keeps robot from oscillating at an obstacle
-		}
-
 		// decide if we are close on any sensor
 		bool leftSideClear = true;
 		bool rightSideClear = true;
 		bool frontClear = true;
+
+		if (avoidFrontMode) {
+			frontDistance -= 4; // make object appear closer so we look for a longer way out
+								// keeps robot from oscillating at an obstacle
+		}
 
 		if (leftDistance < TOO_CLOSE_SIDE) {
 			leftSideClear = false;
@@ -299,10 +297,7 @@ void loop() {
 
 			if (!avoidFrontMode) { 
 				// first time after hitting front blocked with sides clear
-				// we come in here to initialize the avoid process.
-
-				avoidFrontMode = true ;  // will be set to 0 if the robot moves ahead
-
+				avoidFrontMode = true ;  // will be set to false when it is clear forward
 			}
 
 			String actionMsg = "Avoid front with spin: ";
@@ -354,7 +349,7 @@ void loop() {
 			robotBack(SLOW_SPEED);
 			delay(2000);
 			spinAway(spinDirection);
-			delay(1000);
+			delay(1000); // spin significantly to get out 
 		}
 
 		else if (!leftSideClear && !frontClear && rightSideClear) {
@@ -377,10 +372,6 @@ void loop() {
 			commandMode = MANUAL_MODE;	
 		}
 
-
-
-
-    
   } // end of auto mode processing
 
 } // end of loop()
