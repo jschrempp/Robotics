@@ -30,6 +30,9 @@
  *	back to the app when the robot is in AUTO mode.
  *  
  *	by: Bob Glicksman, Jim Schrempp, Team Practical Projects
+ *		Version 3.7 9/29/2020
+ *			After our second avoidance experiments. We now remember the most recent Pivot
+ *			direction to be our Spin direction if we get in a tight situation.
  *		Version 3.6 9/24/2020
  *			After our avoidance experiments, rewrote the auto loop to be clear and implement
  *			the behaviors we agreed to.
@@ -77,7 +80,7 @@
 // Set the system mode to semi-automatic so that the robot will ruyn even if there is no Wi-Fi
 SYSTEM_MODE(SEMI_AUTOMATIC);
 
-#define version 3.6
+#define version 3.7
 
 // Global constants
 	// motor speeds
@@ -139,6 +142,10 @@ const int WIFI_CONNECT = A2;  // if low photon will connect to WiFi in setup()
 
 // Global Variables
 bool g_ForceAutonomousMode = false;
+
+static float frontDistance = 0; // the measured distance ahead
+static float leftDistance = 0;  // the measured clearance to the left
+static float rightDistance = 0; // the measured clearance to the right
 
 // Cloud Functions
 
@@ -209,9 +216,7 @@ void loop() {
 	static int currentMode = MANUAL_MODE;  // place in manual mode until commanded otherwise
 	static bool avoidFrontMode = false;
 	//static int notClear = 0; // number of times we have been unable to move forward
-	static float frontDistance = 0; // the measured distance ahead
-	static float leftDistance = 0;  // the measured clearance to the left
-	static float rightDistance = 0; // the measured clearance to the right
+
 
 	int commandMode = 0;
 
@@ -245,7 +250,8 @@ void loop() {
 		rightDistance = measureDistance(RIGHT); // take ultrasonic range measurement right
 		frontDistance = measureDistance(FORWARD);  // take ultrasonic range measurement forward
 
-		reportDistance(frontDistance,leftDistance,rightDistance);
+		// why not measure each distance three times and take the lowest number for each?
+
 
 		// toggle the on board LED to show that we've completed a distance measure cycle
 		static bool LEDStatus = false;
@@ -257,10 +263,11 @@ void loop() {
 		bool rightSideClear = true;
 		bool frontClear = true;
 
-		if (avoidFrontMode) {
-			frontDistance -= 4; // make object appear closer so we look for a longer way out
+		// left this here in case we decide to try it again
+		//if (avoidFrontMode) {
+		//	frontDistance -= 4; // make object appear closer so we look for a longer way out
 								// keeps robot from oscillating at an obstacle
-		}
+		//}
 
 		if (leftDistance < TOO_CLOSE_SIDE) {
 			leftSideClear = false;
@@ -295,21 +302,23 @@ void loop() {
 		else if (leftSideClear && !frontClear && rightSideClear) {
 			// front too close, sides open, spin some way
 
+			String actionMsg = "Avoid front with same spin ";
+
 			if (!avoidFrontMode) { 
 				// first time after hitting front blocked with sides clear
 				avoidFrontMode = true ;  // will be set to false when it is clear forward
-			}
+				actionMsg = "Avoid front with spin:  ";
 
-			String actionMsg = "Avoid front with spin: ";
+				// pick a direction
+				float randomDirection = random(2);
+				if (randomDirection < 1) {
+					spinDirection = 0;
+					actionMsg += "left";
+				} else {
+					spinDirection = 1;
+					actionMsg += "right";
+				}
 
-			// pick a direction
-			float randomDirection = random(2);
-			if (randomDirection < 1) {
-				spinDirection = 0;
-				actionMsg += "left";
-			} else {
-				spinDirection = 1;
-				actionMsg += "right";
 			}
 
 			reportAction(actionMsg); 
@@ -320,6 +329,8 @@ void loop() {
 
 		else if (leftSideClear && !frontClear && !rightSideClear) {
 			// left side clear, pivot left 
+			avoidFrontMode = true;
+			spinDirection = 0;			// Use this direction for avoidance
 			reportAction("Pivot Left"); 
 			robotPivotLeft(LOW_SPEED);
 		}
@@ -347,13 +358,15 @@ void loop() {
 			reportAction(actionMsg); 
 
 			robotBack(SLOW_SPEED);
-			delay(2000);
+			delay(1000);
 			spinAway(spinDirection);
 			delay(1000); // spin significantly to get out 
 		}
 
 		else if (!leftSideClear && !frontClear && rightSideClear) {
 			// right clear, pivot right
+			avoidFrontMode = true;
+			spinDirection = 1;          // Use this direction for avoidance
 			reportAction("Pivot Right"); 
 			robotPivotRight(LOW_SPEED);
 		}
@@ -487,10 +500,13 @@ void reportAction(String theAction) {
 	}
 	lastMsg = theAction;
 
+	reportDistance(frontDistance,leftDistance,rightDistance);
+
 	String output = theAction;
 	output += "|";
 
 	Serial1.print(output);  
+	Serial1.print(".|");  
   
 }	// end of reportAction()
 
@@ -502,7 +518,7 @@ void reportAction(String theAction) {
 
 void reportDistance(float front, float left, float right) {
 	static unsigned long lastSend = millis();
-	if ((millis() - lastSend) > 500) {
+	//if ((millis() - lastSend) > 500) {
 		// send a Dist string to client
 		String output = "Dist ";
 		output += String(left,2);
@@ -515,7 +531,7 @@ void reportDistance(float front, float left, float right) {
 		Serial1.print(output);
     
 		lastSend = millis();
-	}
+	//}
   
 }	// end of reportDistance()
 
