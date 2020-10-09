@@ -12,7 +12,7 @@ In order to run, test and explore the robot, we designed and built a Particle Ph
 board.  We chose the Particle Photon for our microcontroller because of Arduino
 code compatibility, the ability to flash new firmware over WiFi, and Particle's IoT cloud functionality.
 However, we used an inexpensive bluetooth module for basic communication with the robot (vs. the Particle Cloud)
-because we wanted to experiment with our robot both indoors and outdoors, the latter where there is no
+because we wanted to experiment with our robot both indoors and outdoors; the latter where there is no
 WiFi capability.
 
 The printed circuit board that we designed for this project contains all of the electronics needed to control
@@ -21,7 +21,7 @@ and monitor the robot.  This board includes:
 2. A buck power converter (so that the electronics can be powered from the robot's batteries).
 3. Interface circuitry for three HC-SR04 ultrasonic distance sensors.
 4. An HC-05 bluetooth module.
-5. A dual motor controller capable of driving the two motors on the robot.
+5. A dual H-bridge motor controller capable of driving the two motors on the robot.
 6. Expansion capability for future development.
 
 We wrote an Android app (in MIT App Inventor 2) to communicate with the robot and control its motion
@@ -57,8 +57,13 @@ height transitions do not work well with this robot. A tank chassis might allow 
 small height transitions and on plush surfaces.
 
 
-We plan to continue testing and trying to improve the robot's ability to self-navigate and avoid obsticles.
-The current robot firmware performs very well, given the limitations above, and is fun to watch and to experiment
-with.
+We have documented the robot's behavior in autonomous navigation mode (AUTO) in a series of six videos that 
+you can view, beginning here:
 
+https://www.youtube.com/watch?v=S9v4ddf_cKs&list=PLz4TQp3CqyALdgTUBRFCJkOn_9tXRT2St
 
+In addition to autonomous mode, the Robot can be manually steered via the app supplied with this project.
+
+## Conclusions
+Our conclusion is that the robot can successfully navigate autonomously over a fairly wide range of challenging
+conditions, given the limitations of the low cost hardware used.
