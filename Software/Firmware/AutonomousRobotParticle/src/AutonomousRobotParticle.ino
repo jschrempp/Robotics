@@ -30,6 +30,8 @@
  *	back to the app when the robot is in AUTO mode.
  *  
  *	by: Bob Glicksman, Jim Schrempp, Team Practical Projects
+ *		Version 3.8 10/12/20
+ *			Changed NEAR_SIDE to 8.0 and TOO_CLOSE_SIDE to 6.0 to experiment with better side clearance.
  *		Version 3.7 9/29/2020
  *			After our second avoidance experiments. We now remember the most recent Pivot
  *			direction to be our Spin direction if we get in a tight situation.
@@ -97,9 +99,9 @@ const int PIVOT_TIME = 400; // time in milliseconds to pivot robot while searchi
 
 	// ultrasonic scan and measurement times
 const float OBSTRUCTION_CLOSE_DISTANCE = 8.0; // distance (inches) that is too close; must stop and turn
-const float TOO_CLOSE_SIDE = 4.0; // distance (inches) that is too close to a side (left/right) sensor; must stop and turn
+const float TOO_CLOSE_SIDE = 6.0; // distance (inches) that is too close to a side (left/right) sensor; must stop and turn
 const float CLEAR_AHEAD = 12.0; // minimum distance (inches) for robot to be OK to move ahead
-const float NEAR_SIDE = 6.0; // distance (inches) that is so close to a side we will turn while moving.
+const float NEAR_SIDE = 8.0; // distance (inches) that is so close to a side we will turn while moving.
 const unsigned int TIMEOUT = 20;  // max measurement time is 20 ms or about 11 feet.
 
 	// robot command modes from app
