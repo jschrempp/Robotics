@@ -30,6 +30,10 @@
  *	back to the app when the robot is in AUTO mode.
  *  
  *	by: Bob Glicksman, Jim Schrempp, Team Practical Projects
+ *   	Version 3.10 10/16/2020
+ * 			Pivot right/left now has the 150ms delay again.
+ * 			Mainloop 150ms delay added in 3.9 removed.
+ * 			TOO_CLOSE_SIDE is now back to 4 inches.
  *		Version 3.9 10/15/2020 
  *			Removed delays from pivots. Robot now moves until a sensor state change.
  *			Removed "scan" since it was just a pivot with no delay.
@@ -86,7 +90,7 @@
 // Set the system mode to semi-automatic so that the robot will ruyn even if there is no Wi-Fi
 SYSTEM_MODE(SEMI_AUTOMATIC);
 
-#define version 3.9
+#define version 3.10
 
 // Global constants
 	// motor speeds
@@ -103,7 +107,7 @@ const int PIVOT_TIME = 400; // time in milliseconds to pivot robot while searchi
 
 	// ultrasonic scan and measurement times
 const float OBSTRUCTION_CLOSE_DISTANCE = 8.0; // distance (inches) that is too close; must stop and turn
-const float TOO_CLOSE_SIDE = 3.0; // distance (inches) that is too close to a side (left/right) sensor; must stop and turn
+const float TOO_CLOSE_SIDE = 4.0; // distance (inches) that is too close to a side (left/right) sensor; must stop and turn
 const float CLEAR_AHEAD = 12.0; // minimum distance (inches) for robot to be OK to move ahead
 //const float NEAR_SIDE = 8.0; // UNUSED  distance (inches) that is so close to a side we will turn while moving.
 const unsigned int TIMEOUT = 20;  // max measurement time is 20 ms or about 11 feet.
@@ -397,6 +401,8 @@ void loop() {
 	// Save the values we just used 
 	previousDistanceSet(leftDistance, frontDistance, rightDistance, leftSideClear, frontClear, rightSideClear);
 
+	
+
   } // end of auto mode processing
 
 } // end of loop()
@@ -626,12 +632,15 @@ void pivotAway(int direction) {
 // function to pivot robot right
 void robotPivotRight() {
 	robotRight(SLOW_SPEED);
+	delay(150);
+	//robotStop();
 }
 
 // function to pivot robot left
 void robotPivotLeft() {
 	robotLeft(SLOW_SPEED);
-
+    delay(150);
+	//robotStop();
 }
 
 // function to move robot forward at commanded speed
