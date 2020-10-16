@@ -30,6 +30,10 @@
  *	back to the app when the robot is in AUTO mode.
  *  
  *	by: Bob Glicksman, Jim Schrempp, Team Practical Projects
+ *		Version 3.9 10/15/2020 
+ *			Removed delays from pivots. Robot now moves until a sensor state change.
+ *			Removed "scan" since it was just a pivot with no delay.
+ *			Now store previous distance and close determination in a global
  *		Version 3.8 10/12/20
  *			Changed NEAR_SIDE to 8.0 and TOO_CLOSE_SIDE to 6.0 to experiment with better side clearance.
  *		Version 3.7 9/29/2020
@@ -82,7 +86,7 @@
 // Set the system mode to semi-automatic so that the robot will ruyn even if there is no Wi-Fi
 SYSTEM_MODE(SEMI_AUTOMATIC);
 
-#define version 3.7
+#define version 3.9
 
 // Global constants
 	// motor speeds
@@ -99,9 +103,9 @@ const int PIVOT_TIME = 400; // time in milliseconds to pivot robot while searchi
 
 	// ultrasonic scan and measurement times
 const float OBSTRUCTION_CLOSE_DISTANCE = 8.0; // distance (inches) that is too close; must stop and turn
-const float TOO_CLOSE_SIDE = 6.0; // distance (inches) that is too close to a side (left/right) sensor; must stop and turn
+const float TOO_CLOSE_SIDE = 3.0; // distance (inches) that is too close to a side (left/right) sensor; must stop and turn
 const float CLEAR_AHEAD = 12.0; // minimum distance (inches) for robot to be OK to move ahead
-const float NEAR_SIDE = 8.0; // distance (inches) that is so close to a side we will turn while moving.
+//const float NEAR_SIDE = 8.0; // UNUSED  distance (inches) that is so close to a side we will turn while moving.
 const unsigned int TIMEOUT = 20;  // max measurement time is 20 ms or about 11 feet.
 
 	// robot command modes from app
@@ -141,6 +145,16 @@ const int extLED = 128;	// SR1 QH
 
 	// Other Pins
 const int WIFI_CONNECT = A2;  // if low photon will connect to WiFi in setup()
+
+// structures
+struct  {
+	bool leftClear;
+	bool rightClear;
+	bool frontClear;
+	float leftDistance;
+	float rightDistance;
+	float frontDistance;
+} g_previousDistanceCheck;
 
 // Global Variables
 bool g_ForceAutonomousMode = false;
@@ -200,6 +214,8 @@ void setup() {
 		Particle.function("Autonomous Mode", cloudGoAutonomous);
 	}	
 
+	previousDistanceSet(-1, -1, -1, true, true, true);
+
 	// flash the LED twice to indicate setup is complete
 	for(int i = 0; i < 2; i++) {
 		digitalWrite(LEDpin, HIGH);
@@ -217,8 +233,6 @@ void loop() {
   
 	static int currentMode = MANUAL_MODE;  // place in manual mode until commanded otherwise
 	static bool avoidFrontMode = false;
-	//static int notClear = 0; // number of times we have been unable to move forward
-
 
 	int commandMode = 0;
 
@@ -264,12 +278,6 @@ void loop() {
 		bool leftSideClear = true;
 		bool rightSideClear = true;
 		bool frontClear = true;
-
-		// left this here in case we decide to try it again
-		//if (avoidFrontMode) {
-		//	frontDistance -= 4; // make object appear closer so we look for a longer way out
-								// keeps robot from oscillating at an obstacle
-		//}
 
 		if (leftDistance < TOO_CLOSE_SIDE) {
 			leftSideClear = false;
@@ -324,8 +332,7 @@ void loop() {
 			}
 
 			reportAction(actionMsg); 
-			spinAway(spinDirection);
-			delay(300);
+			pivotAway(spinDirection);
 
 		}
 
@@ -334,7 +341,7 @@ void loop() {
 			avoidFrontMode = true;
 			spinDirection = 0;			// Use this direction for avoidance
 			reportAction("Pivot Left"); 
-			robotPivotLeft(LOW_SPEED);
+			robotPivotLeft();  
 		}
 
 		else if (!leftSideClear && frontClear && rightSideClear) {
@@ -361,7 +368,7 @@ void loop() {
 
 			robotBack(SLOW_SPEED);
 			delay(1000);
-			spinAway(spinDirection);
+			pivotAway(spinDirection);
 			delay(1000); // spin significantly to get out 
 		}
 
@@ -370,7 +377,7 @@ void loop() {
 			avoidFrontMode = true;
 			spinDirection = 1;          // Use this direction for avoidance
 			reportAction("Pivot Right"); 
-			robotPivotRight(LOW_SPEED);
+			robotPivotRight();   
 		}
 
 		else if (!leftSideClear && !frontClear && !rightSideClear) { 
@@ -386,6 +393,9 @@ void loop() {
 			robotStop();
 			commandMode = MANUAL_MODE;	
 		}
+
+	// Save the values we just used 
+	previousDistanceSet(leftDistance, frontDistance, rightDistance, leftSideClear, frontClear, rightSideClear);
 
   } // end of auto mode processing
 
@@ -519,22 +529,17 @@ void reportAction(String theAction) {
 ***************************************************************************/
 
 void reportDistance(float front, float left, float right) {
-	static unsigned long lastSend = millis();
-	//if ((millis() - lastSend) > 500) {
-		// send a Dist string to client
-		String output = "Dist ";
-		output += String(left,2);
-		output += " ";
-		output += String(front,2);
-		output += " ";
-		output += String(right,2);
-		output += "|";
 
-		Serial1.print(output);
-    
-		lastSend = millis();
-	//}
-  
+	String output = "Dist ";
+	output += String(left,2);
+	output += " ";
+	output += String(front,2);
+	output += " ";
+	output += String(right,2);
+	output += "|";
+
+	Serial1.print(output);
+
 }	// end of reportDistance()
 
 
@@ -603,53 +608,15 @@ float measureDistance(int direction){
 void pivotAway(int direction) {
 	switch (direction) {
 		case 0:
-			robotPivotLeft(PIVOT_TIME);
+			robotPivotLeft();
 			break;
 		case 1:
-			robotPivotRight(PIVOT_TIME);
+			robotPivotRight();
 			break;
   		default:
 			break;
   	}
 } //end of pivotAway()
-
-// function to scan robot to avoid an obstacle
-//	direction 0:scan left   1: scan right
-
-void spinAway(int direction) {
-	switch (direction) {
-		case 0:
-			robotLeft(SLOW_SPEED);
-			break;
-		case 1:
-			robotRight(SLOW_SPEED);
-			break;
-  		default:
-			break;
-  	}
-} //end of pivotAway()
-
-
-// function to check ahead for obstacle
-//	returns:
-//		0:  clear far ahead
-//		1:  clear for a little bit
-//		2:  obstacle ahead
-
-int checkAhead(float leftDistance, float rightDistance, float frontDistance) {
-
-	if (frontDistance > CLEAR_AHEAD) {
-		return 0;
-	}
-	
-	// if we're too close front
-	if (frontDistance < OBSTRUCTION_CLOSE_DISTANCE) { // we are too close, sweep the sides to find where clear
-		return 2;
-	} 
-  
-	return 1;
-  
-}  // end of checkAhead()
 
 
 /**************************************************************************
@@ -657,17 +624,14 @@ int checkAhead(float leftDistance, float rightDistance, float frontDistance) {
 ***************************************************************************/
 
 // function to pivot robot right
-void robotPivotRight(int howLong) {
+void robotPivotRight() {
 	robotRight(SLOW_SPEED);
-	delay(howLong);
-	robotStop();
 }
 
 // function to pivot robot left
-void robotPivotLeft(int howLong) {
+void robotPivotLeft() {
 	robotLeft(SLOW_SPEED);
-	delay(howLong);
-	robotStop();
+
 }
 
 // function to move robot forward at commanded speed
@@ -906,3 +870,16 @@ unsigned long rdPulseIn(int pin, int value, unsigned int timeout) { // note "tim
     return micros() - now;
 }   // end of rePulseIn()
 
+/************************************************************************
+ * previousDistanceReset() 
+ *    resets g_lastDistanceCheck 
+ * 
+*************************************************************************/
+void previousDistanceSet(float leftD, float frontD, float rightD, bool leftClear, bool frontClear, bool rightClear) {
+	g_previousDistanceCheck.frontClear = frontClear;
+	g_previousDistanceCheck.rightClear = rightClear;
+	g_previousDistanceCheck.leftClear = leftClear;
+	g_previousDistanceCheck.frontDistance = frontD;
+	g_previousDistanceCheck.rightDistance = rightD;
+	g_previousDistanceCheck.leftDistance = leftD;
+}
