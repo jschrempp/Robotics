@@ -30,6 +30,8 @@
  *	back to the app when the robot is in AUTO mode.
  *  
  *	by: Bob Glicksman, Jim Schrempp, Team Practical Projects
+ *		version 3.11 11/2/2020
+ *			added stop when forward is blocked more than FRONTBLOCKED_LIMIT times
  *   	Version 3.10 10/16/2020
  * 			Pivot right/left now has the 150ms delay again.
  * 			Mainloop 150ms delay added in 3.9 removed.
@@ -104,6 +106,11 @@ const int RIGHT = 1;
 
 	// pivot time for searching
 const int PIVOT_TIME = 400; // time in milliseconds to pivot robot while searching
+
+//
+const int FRONTBLOCKED_LIMIT = 10;  // if front blocked more than this many 	
+									// times in a row, stop 
+
 
 	// ultrasonic scan and measurement times
 const float OBSTRUCTION_CLOSE_DISTANCE = 8.0; // distance (inches) that is too close; must stop and turn
@@ -237,6 +244,7 @@ void loop() {
   
 	static int currentMode = MANUAL_MODE;  // place in manual mode until commanded otherwise
 	static bool avoidFrontMode = false;
+	static int frontBlockedCount = 0;
 
 	int commandMode = 0;
 
@@ -292,6 +300,18 @@ void loop() {
 		if (frontDistance < OBSTRUCTION_CLOSE_DISTANCE) {
 			frontClear =  false;
 		}
+
+		if (frontClear) {
+			frontBlockedCount = 0;
+		} else {
+			frontBlockedCount++;
+		}
+
+		if (frontBlockedCount > FRONTBLOCKED_LIMIT) {
+			robotStop();
+			reportAction("front blocked count exceeded");
+			currentMode = MANUAL_MODE;
+		} else {
 
 		// If front is clear, exit avoid mode
 		if (frontClear) {
@@ -389,19 +409,19 @@ void loop() {
 						
 			reportAction("Blocked: Stopping"); 
 			robotStop();
-			commandMode = MANUAL_MODE;		
+			currentMode = MANUAL_MODE;		
 		}
 
 		else {
 			reportAction("Error in main loop");
 			robotStop();
-			commandMode = MANUAL_MODE;	
+			currentMode = MANUAL_MODE;	
 		}
 
 	// Save the values we just used 
 	previousDistanceSet(leftDistance, frontDistance, rightDistance, leftSideClear, frontClear, rightSideClear);
 
-	
+			}
 
   } // end of auto mode processing
 
