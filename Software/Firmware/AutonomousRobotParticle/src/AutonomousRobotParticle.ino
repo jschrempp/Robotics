@@ -30,6 +30,8 @@
  *	back to the app when the robot is in AUTO mode.
  *  
  *	by: Bob Glicksman, Jim Schrempp, Team Practical Projects
+ *		version 3.13 11/4/2020
+ *			Cleaned up variable name. Added cmd: to some messages.
  * 		version 3.12 11/3/2020
  * 			Changed front blocked limit to milliseconds. Now set to 20000
  *		version 3.11 11/2/2020
@@ -248,15 +250,15 @@ void loop() {
 	static bool avoidFrontMode = false;
 	static long frontIsClearAtMS = 0;
 
-	int commandMode = 0;
+	int commandFromBT = 0;
 
-	commandMode = command(); // look for bluetooth command and process command accordingly
+	commandFromBT = command(); // look for bluetooth command and process command accordingly
 
 	if (g_ForceAutonomousMode) {
-		commandMode = AUTO;
+		commandFromBT = AUTO;
 	}
 	
-	switch (commandMode) {
+	switch (commandFromBT) {
 		case (MANUAL_MODE):    // change the current mode to manual
 			currentMode = MANUAL_MODE;
 			break;
@@ -306,6 +308,7 @@ void loop() {
 		// if front is clear, note that
 		if (frontClear) {
 			frontIsClearAtMS = millis();
+			avoidFrontMode = false; // reset avoidance becasue we're running now
 		} 
 
 		// if front has been blocked continuously, then give up
@@ -316,11 +319,6 @@ void loop() {
 			currentMode = MANUAL_MODE;
 
 		} else {
-
-			// If front is clear, exit avoid mode
-			if (frontClear) {
-				avoidFrontMode = false; // reset avoidance becasue we're running now
-			}
 
 			// Handle the sensor combinations
 
@@ -451,7 +449,7 @@ int command() {
 				digitalWrite(LEDpin, HIGH);
 				srWrite(extLED, 1);
 				robotStop();
-				reportAction("Robot is autonomous");
+				reportAction("cmd: Robot is autonomous");
 				mode = AUTO;
 				break;
       
@@ -459,7 +457,7 @@ int command() {
 				digitalWrite(LEDpin, HIGH);
 				srWrite(extLED, 1);
 				robotForward(HIGH_SPEED);
-				reportAction("Robot moves forward");
+				reportAction("cmd: Robot moves forward");
 				mode = MANUAL_MODE;
 				break;
 
@@ -467,7 +465,7 @@ int command() {
 				digitalWrite(LEDpin, HIGH);
 				srWrite(extLED, 1);
 				robotLeft(SLOW_SPEED);
-				reportAction("Robot pivots left");
+				reportAction("cmd: Robot pivots left");
 				mode = MANUAL_MODE;
 				break;
       
@@ -475,7 +473,7 @@ int command() {
 				digitalWrite(LEDpin, HIGH);
 				srWrite(extLED, 1);
 				robotRight(SLOW_SPEED);
-				reportAction("Robot pivots right");
+				reportAction("cmd: Robot pivots right");
 				mode = MANUAL_MODE;
 				break;
 
@@ -483,7 +481,7 @@ int command() {
 				digitalWrite(LEDpin, HIGH);
 				srWrite(extLED, 1);
 				robotBack(LOW_SPEED);;
-				reportAction("Robot moves backward");
+				reportAction("cmd: Robot moves backward");
 				mode = MANUAL_MODE;
 				break;
       
@@ -491,7 +489,7 @@ int command() {
 				digitalWrite(LEDpin, HIGH);
 				srWrite(extLED, 1);
 				robotFwdLft(LOW_SPEED);
-				reportAction("Robot turns leftward");
+				reportAction("cmd: Robot turns leftward");
 				mode = MANUAL_MODE;
 				break;
 
@@ -499,7 +497,7 @@ int command() {
 				digitalWrite(LEDpin, HIGH);
 				srWrite(extLED, 1);
 				robotFwdRgt(LOW_SPEED);
-				reportAction("Robot turns rightward");
+				reportAction("cmd: Robot turns rightward");
 				mode = MANUAL_MODE;
 				break;     
 
@@ -507,7 +505,7 @@ int command() {
 				digitalWrite(LEDpin, LOW);
 				srWrite(extLED, 0);
 				robotStop(); 
-				reportAction("Robot brakes then stops");
+				reportAction("cmd: Robot brakes then stops");
 				mode = MANUAL_MODE;
 				break;
 
@@ -515,7 +513,7 @@ int command() {
 				digitalWrite(LEDpin, LOW);
 				srWrite(extLED, 0);
 				mode = NO_COMMAND;
-				reportAction("Error!");
+				reportAction("cmd: Error!");
 		}  // end of switch
 	} 
 	else {  // no character received
