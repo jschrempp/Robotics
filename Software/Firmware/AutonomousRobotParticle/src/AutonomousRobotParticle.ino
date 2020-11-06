@@ -30,6 +30,20 @@
  *	back to the app when the robot is in AUTO mode.
  *  
  *	by: Bob Glicksman, Jim Schrempp, Team Practical Projects
+ *		version 3.13 11/4/2020
+ *			Cleaned up variable name. Added cmd: to some messages.
+ * 		version 3.12 11/3/2020
+ * 			Changed front blocked limit to milliseconds. Now set to 20000
+ *		version 3.11 11/2/2020
+ *			added stop when forward is blocked more than FRONTBLOCKED_LIMIT times
+ *   	Version 3.10 10/16/2020
+ * 			Pivot right/left now has the 150ms delay again.
+ * 			Mainloop 150ms delay added in 3.9 removed.
+ * 			TOO_CLOSE_SIDE is now back to 4 inches.
+ *		Version 3.9 10/15/2020 
+ *			Removed delays from pivots. Robot now moves until a sensor state change.
+ *			Removed "scan" since it was just a pivot with no delay.
+ *			Now store previous distance and close determination in a global
  *		Version 3.8 10/12/20
  *			Changed NEAR_SIDE to 8.0 and TOO_CLOSE_SIDE to 6.0 to experiment with better side clearance.
  *		Version 3.7 9/29/2020
@@ -82,7 +96,7 @@
 // Set the system mode to semi-automatic so that the robot will ruyn even if there is no Wi-Fi
 SYSTEM_MODE(SEMI_AUTOMATIC);
 
-#define version 3.7
+#define version 3.10
 
 // Global constants
 	// motor speeds
@@ -97,11 +111,16 @@ const int RIGHT = 1;
 	// pivot time for searching
 const int PIVOT_TIME = 400; // time in milliseconds to pivot robot while searching
 
+//
+const int FRONTBLOCKED_LIMIT_MS = 20000;  // if front blocked more than this many 	
+									// milliseconds in a row, stop 
+
+
 	// ultrasonic scan and measurement times
 const float OBSTRUCTION_CLOSE_DISTANCE = 8.0; // distance (inches) that is too close; must stop and turn
-const float TOO_CLOSE_SIDE = 6.0; // distance (inches) that is too close to a side (left/right) sensor; must stop and turn
+const float TOO_CLOSE_SIDE = 4.0; // distance (inches) that is too close to a side (left/right) sensor; must stop and turn
 const float CLEAR_AHEAD = 12.0; // minimum distance (inches) for robot to be OK to move ahead
-const float NEAR_SIDE = 8.0; // distance (inches) that is so close to a side we will turn while moving.
+//const float NEAR_SIDE = 8.0; // UNUSED  distance (inches) that is so close to a side we will turn while moving.
 const unsigned int TIMEOUT = 20;  // max measurement time is 20 ms or about 11 feet.
 
 	// robot command modes from app
@@ -141,6 +160,16 @@ const int extLED = 128;	// SR1 QH
 
 	// Other Pins
 const int WIFI_CONNECT = A2;  // if low photon will connect to WiFi in setup()
+
+// structures
+struct  {
+	bool leftClear;
+	bool rightClear;
+	bool frontClear;
+	float leftDistance;
+	float rightDistance;
+	float frontDistance;
+} g_previousDistanceCheck;
 
 // Global Variables
 bool g_ForceAutonomousMode = false;
@@ -200,6 +229,8 @@ void setup() {
 		Particle.function("Autonomous Mode", cloudGoAutonomous);
 	}	
 
+	previousDistanceSet(-1, -1, -1, true, true, true);
+
 	// flash the LED twice to indicate setup is complete
 	for(int i = 0; i < 2; i++) {
 		digitalWrite(LEDpin, HIGH);
@@ -217,18 +248,17 @@ void loop() {
   
 	static int currentMode = MANUAL_MODE;  // place in manual mode until commanded otherwise
 	static bool avoidFrontMode = false;
-	//static int notClear = 0; // number of times we have been unable to move forward
+	static long frontIsClearAtMS = 0;
 
+	int commandFromBT = 0;
 
-	int commandMode = 0;
-
-	commandMode = command(); // look for bluetooth command and process command accordingly
+	commandFromBT = command(); // look for bluetooth command and process command accordingly
 
 	if (g_ForceAutonomousMode) {
-		commandMode = AUTO;
+		commandFromBT = AUTO;
 	}
 	
-	switch (commandMode) {
+	switch (commandFromBT) {
 		case (MANUAL_MODE):    // change the current mode to manual
 			currentMode = MANUAL_MODE;
 			break;
@@ -265,12 +295,6 @@ void loop() {
 		bool rightSideClear = true;
 		bool frontClear = true;
 
-		// left this here in case we decide to try it again
-		//if (avoidFrontMode) {
-		//	frontDistance -= 4; // make object appear closer so we look for a longer way out
-								// keeps robot from oscillating at an obstacle
-		//}
-
 		if (leftDistance < TOO_CLOSE_SIDE) {
 			leftSideClear = false;
 		}
@@ -281,36 +305,82 @@ void loop() {
 			frontClear =  false;
 		}
 
-		// If front is clear, exit avoid mode
+		// if front is clear, note that
 		if (frontClear) {
+			frontIsClearAtMS = millis();
 			avoidFrontMode = false; // reset avoidance becasue we're running now
-		}
+		} 
 
-		// Handle the sensor combinations
+		// if front has been blocked continuously, then give up
+		if (millis() - frontIsClearAtMS > FRONTBLOCKED_LIMIT_MS) {
 
-		if (leftSideClear && frontClear && rightSideClear) {
-			// side and ahead are clear
-			reportAction("Go Forward"); 
-			robotForward(LOW_SPEED);
-			
-		}
+			robotStop();
+			reportAction("Front blocked time exceeded");
+			currentMode = MANUAL_MODE;
 
-		else if (leftSideClear && frontClear && !rightSideClear) {
-			// right side close, steer away 
-			reportAction("Steer Left"); 
-			robotFwdTightLeft(LOW_SPEED);
-		}	
+		} else {
 
-		else if (leftSideClear && !frontClear && rightSideClear) {
-			// front too close, sides open, spin some way
+			// Handle the sensor combinations
 
-			String actionMsg = "Avoid front with same spin ";
+			if (leftSideClear && frontClear && rightSideClear) {
+				// side and ahead are clear
+				reportAction("Go Forward"); 
+				robotForward(LOW_SPEED);
+				
+			}
 
-			if (!avoidFrontMode) { 
-				// first time after hitting front blocked with sides clear
-				avoidFrontMode = true ;  // will be set to false when it is clear forward
-				actionMsg = "Avoid front with spin:  ";
+			else if (leftSideClear && frontClear && !rightSideClear) {
+				// right side close, steer away 
+				reportAction("Steer Left"); 
+				robotFwdTightLeft(LOW_SPEED);
+			}	
 
+			else if (leftSideClear && !frontClear && rightSideClear) {
+				// front too close, sides open, spin some way
+
+				String actionMsg = "Avoid front with same spin ";
+
+				if (!avoidFrontMode) { 
+					// first time after hitting front blocked with sides clear
+					avoidFrontMode = true ;  // will be set to false when it is clear forward
+					actionMsg = "Avoid front with spin:  ";
+
+					// pick a direction
+					float randomDirection = random(2);
+					if (randomDirection < 1) {
+						spinDirection = 0;
+						actionMsg += "left";
+					} else {
+						spinDirection = 1;
+						actionMsg += "right";
+					}
+
+				}
+
+				reportAction(actionMsg); 
+				pivotAway(spinDirection);
+
+			}
+
+			else if (leftSideClear && !frontClear && !rightSideClear) {
+				// left side clear, pivot left 
+				avoidFrontMode = true;
+				spinDirection = 0;			// Use this direction for avoidance
+				reportAction("Pivot Left"); 
+				robotPivotLeft();  
+			}
+
+			else if (!leftSideClear && frontClear && rightSideClear) {
+				// left side close, steer right 
+				reportAction("Steer Right"); 
+				robotFwdTightRight(LOW_SPEED); 
+			}
+
+			else if (!leftSideClear && frontClear && !rightSideClear) {
+				// trapped, backup and spin
+
+				String actionMsg = "Backup with spin: ";
+							
 				// pick a direction
 				float randomDirection = random(2);
 				if (randomDirection < 1) {
@@ -320,74 +390,42 @@ void loop() {
 					spinDirection = 1;
 					actionMsg += "right";
 				}
+				reportAction(actionMsg); 
 
+				robotBack(SLOW_SPEED);
+				delay(1000);
+				pivotAway(spinDirection);
+				delay(1000); // spin significantly to get out 
 			}
 
-			reportAction(actionMsg); 
-			spinAway(spinDirection);
-			delay(300);
-
-		}
-
-		else if (leftSideClear && !frontClear && !rightSideClear) {
-			// left side clear, pivot left 
-			avoidFrontMode = true;
-			spinDirection = 0;			// Use this direction for avoidance
-			reportAction("Pivot Left"); 
-			robotPivotLeft(LOW_SPEED);
-		}
-
-		else if (!leftSideClear && frontClear && rightSideClear) {
-			// left side close, steer right 
-			reportAction("Steer Right"); 
-			robotFwdTightRight(LOW_SPEED); 
-		}
-
-		else if (!leftSideClear && frontClear && !rightSideClear) {
-			// trapped, backup and spin
-
-			String actionMsg = "Backup with spin: ";
-						
-			// pick a direction
-			float randomDirection = random(2);
-			if (randomDirection < 1) {
-				spinDirection = 0;
-				actionMsg += "left";
-			} else {
-				spinDirection = 1;
-				actionMsg += "right";
+			else if (!leftSideClear && !frontClear && rightSideClear) {
+				// right clear, pivot right
+				avoidFrontMode = true;
+				spinDirection = 1;          // Use this direction for avoidance
+				reportAction("Pivot Right"); 
+				robotPivotRight();   
 			}
-			reportAction(actionMsg); 
 
-			robotBack(SLOW_SPEED);
-			delay(1000);
-			spinAway(spinDirection);
-			delay(1000); // spin significantly to get out 
+			else if (!leftSideClear && !frontClear && !rightSideClear) { 
+				// all sensors blocked, stop	
+							
+				reportAction("Blocked: Stopping"); 
+				robotStop();
+				currentMode = MANUAL_MODE;		
+			}
+
+			else {
+				reportAction("Error in main loop");
+				robotStop();
+				currentMode = MANUAL_MODE;	
+			}
+
+		// Save the values we just used 
+		previousDistanceSet(leftDistance, frontDistance, rightDistance, leftSideClear, frontClear, rightSideClear);
+
 		}
 
-		else if (!leftSideClear && !frontClear && rightSideClear) {
-			// right clear, pivot right
-			avoidFrontMode = true;
-			spinDirection = 1;          // Use this direction for avoidance
-			reportAction("Pivot Right"); 
-			robotPivotRight(LOW_SPEED);
-		}
-
-		else if (!leftSideClear && !frontClear && !rightSideClear) { 
-			// all sensors blocked, stop	
-						
-			reportAction("Blocked: Stopping"); 
-			robotStop();
-			commandMode = MANUAL_MODE;		
-		}
-
-		else {
-			reportAction("Error in main loop");
-			robotStop();
-			commandMode = MANUAL_MODE;	
-		}
-
-  } // end of auto mode processing
+  	} // end of auto mode processing
 
 } // end of loop()
 
@@ -411,7 +449,7 @@ int command() {
 				digitalWrite(LEDpin, HIGH);
 				srWrite(extLED, 1);
 				robotStop();
-				reportAction("Robot is autonomous");
+				reportAction("cmd: Robot is autonomous");
 				mode = AUTO;
 				break;
       
@@ -419,7 +457,7 @@ int command() {
 				digitalWrite(LEDpin, HIGH);
 				srWrite(extLED, 1);
 				robotForward(HIGH_SPEED);
-				reportAction("Robot moves forward");
+				reportAction("cmd: Robot moves forward");
 				mode = MANUAL_MODE;
 				break;
 
@@ -427,7 +465,7 @@ int command() {
 				digitalWrite(LEDpin, HIGH);
 				srWrite(extLED, 1);
 				robotLeft(SLOW_SPEED);
-				reportAction("Robot pivots left");
+				reportAction("cmd: Robot pivots left");
 				mode = MANUAL_MODE;
 				break;
       
@@ -435,7 +473,7 @@ int command() {
 				digitalWrite(LEDpin, HIGH);
 				srWrite(extLED, 1);
 				robotRight(SLOW_SPEED);
-				reportAction("Robot pivots right");
+				reportAction("cmd: Robot pivots right");
 				mode = MANUAL_MODE;
 				break;
 
@@ -443,7 +481,7 @@ int command() {
 				digitalWrite(LEDpin, HIGH);
 				srWrite(extLED, 1);
 				robotBack(LOW_SPEED);;
-				reportAction("Robot moves backward");
+				reportAction("cmd: Robot moves backward");
 				mode = MANUAL_MODE;
 				break;
       
@@ -451,7 +489,7 @@ int command() {
 				digitalWrite(LEDpin, HIGH);
 				srWrite(extLED, 1);
 				robotFwdLft(LOW_SPEED);
-				reportAction("Robot turns leftward");
+				reportAction("cmd: Robot turns leftward");
 				mode = MANUAL_MODE;
 				break;
 
@@ -459,7 +497,7 @@ int command() {
 				digitalWrite(LEDpin, HIGH);
 				srWrite(extLED, 1);
 				robotFwdRgt(LOW_SPEED);
-				reportAction("Robot turns rightward");
+				reportAction("cmd: Robot turns rightward");
 				mode = MANUAL_MODE;
 				break;     
 
@@ -467,7 +505,7 @@ int command() {
 				digitalWrite(LEDpin, LOW);
 				srWrite(extLED, 0);
 				robotStop(); 
-				reportAction("Robot brakes then stops");
+				reportAction("cmd: Robot brakes then stops");
 				mode = MANUAL_MODE;
 				break;
 
@@ -475,7 +513,7 @@ int command() {
 				digitalWrite(LEDpin, LOW);
 				srWrite(extLED, 0);
 				mode = NO_COMMAND;
-				reportAction("Error!");
+				reportAction("cmd: Error!");
 		}  // end of switch
 	} 
 	else {  // no character received
@@ -519,22 +557,17 @@ void reportAction(String theAction) {
 ***************************************************************************/
 
 void reportDistance(float front, float left, float right) {
-	static unsigned long lastSend = millis();
-	//if ((millis() - lastSend) > 500) {
-		// send a Dist string to client
-		String output = "Dist ";
-		output += String(left,2);
-		output += " ";
-		output += String(front,2);
-		output += " ";
-		output += String(right,2);
-		output += "|";
 
-		Serial1.print(output);
-    
-		lastSend = millis();
-	//}
-  
+	String output = "Dist ";
+	output += String(left,2);
+	output += " ";
+	output += String(front,2);
+	output += " ";
+	output += String(right,2);
+	output += "|";
+
+	Serial1.print(output);
+
 }	// end of reportDistance()
 
 
@@ -603,53 +636,15 @@ float measureDistance(int direction){
 void pivotAway(int direction) {
 	switch (direction) {
 		case 0:
-			robotPivotLeft(PIVOT_TIME);
+			robotPivotLeft();
 			break;
 		case 1:
-			robotPivotRight(PIVOT_TIME);
+			robotPivotRight();
 			break;
   		default:
 			break;
   	}
 } //end of pivotAway()
-
-// function to scan robot to avoid an obstacle
-//	direction 0:scan left   1: scan right
-
-void spinAway(int direction) {
-	switch (direction) {
-		case 0:
-			robotLeft(SLOW_SPEED);
-			break;
-		case 1:
-			robotRight(SLOW_SPEED);
-			break;
-  		default:
-			break;
-  	}
-} //end of pivotAway()
-
-
-// function to check ahead for obstacle
-//	returns:
-//		0:  clear far ahead
-//		1:  clear for a little bit
-//		2:  obstacle ahead
-
-int checkAhead(float leftDistance, float rightDistance, float frontDistance) {
-
-	if (frontDistance > CLEAR_AHEAD) {
-		return 0;
-	}
-	
-	// if we're too close front
-	if (frontDistance < OBSTRUCTION_CLOSE_DISTANCE) { // we are too close, sweep the sides to find where clear
-		return 2;
-	} 
-  
-	return 1;
-  
-}  // end of checkAhead()
 
 
 /**************************************************************************
@@ -657,17 +652,17 @@ int checkAhead(float leftDistance, float rightDistance, float frontDistance) {
 ***************************************************************************/
 
 // function to pivot robot right
-void robotPivotRight(int howLong) {
+void robotPivotRight() {
 	robotRight(SLOW_SPEED);
-	delay(howLong);
-	robotStop();
+	delay(150);
+	//robotStop();
 }
 
 // function to pivot robot left
-void robotPivotLeft(int howLong) {
+void robotPivotLeft() {
 	robotLeft(SLOW_SPEED);
-	delay(howLong);
-	robotStop();
+    delay(150);
+	//robotStop();
 }
 
 // function to move robot forward at commanded speed
@@ -906,3 +901,16 @@ unsigned long rdPulseIn(int pin, int value, unsigned int timeout) { // note "tim
     return micros() - now;
 }   // end of rePulseIn()
 
+/************************************************************************
+ * previousDistanceReset() 
+ *    resets g_lastDistanceCheck 
+ * 
+*************************************************************************/
+void previousDistanceSet(float leftD, float frontD, float rightD, bool leftClear, bool frontClear, bool rightClear) {
+	g_previousDistanceCheck.frontClear = frontClear;
+	g_previousDistanceCheck.rightClear = rightClear;
+	g_previousDistanceCheck.leftClear = leftClear;
+	g_previousDistanceCheck.frontDistance = frontD;
+	g_previousDistanceCheck.rightDistance = rightD;
+	g_previousDistanceCheck.leftDistance = leftD;
+}
