@@ -30,6 +30,9 @@
  *	back to the app when the robot is in AUTO mode.
  *  
  *	by: Bob Glicksman, Jim Schrempp, Team Practical Projects
+ *		version 3.14 11/9/2020
+ *			set distance timeout to 4ms (about 2 feet)
+ *			added delay of 1000 microseconds before each measurement - reduce crosstalk
  *		version 3.13 11/4/2020
  *			Cleaned up variable name. Added cmd: to some messages.
  * 		version 3.12 11/3/2020
@@ -96,7 +99,7 @@
 // Set the system mode to semi-automatic so that the robot will ruyn even if there is no Wi-Fi
 SYSTEM_MODE(SEMI_AUTOMATIC);
 
-#define version 3.10
+#define version 3.14
 
 // Global constants
 	// motor speeds
@@ -121,7 +124,7 @@ const float OBSTRUCTION_CLOSE_DISTANCE = 8.0; // distance (inches) that is too c
 const float TOO_CLOSE_SIDE = 4.0; // distance (inches) that is too close to a side (left/right) sensor; must stop and turn
 const float CLEAR_AHEAD = 12.0; // minimum distance (inches) for robot to be OK to move ahead
 //const float NEAR_SIDE = 8.0; // UNUSED  distance (inches) that is so close to a side we will turn while moving.
-const unsigned int TIMEOUT = 20;  // max measurement time is 20 ms or about 11 feet.
+const unsigned int TIMEOUT = 4;  // max measurement time is 4 ms or about 2 feet.
 
 	// robot command modes from app
 const int NO_COMMAND = -1;
@@ -603,7 +606,7 @@ float measureDistance(int direction){
 
 		// Clear the trigger pin
 		srWrite(pinToSense, 0);
-		delayMicroseconds(2);
+		delayMicroseconds(1000);  // need this to prevent sensor cross talk giving spurious readings
     
 		// Set the trigger pin HIGH for 10 micro seconds
 		srWrite(pinToSense, 1);
