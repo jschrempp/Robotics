@@ -30,6 +30,8 @@
  *	back to the app when the robot is in AUTO mode.
  *  
  *	by: Bob Glicksman, Jim Schrempp, Team Practical Projects
+ *		version 3.15 12/4/2020
+ *			When blocked front but clear both sides, robot makes a significant pivot
  *		version 3.14 11/9/2020
  *			set distance timeout to 4ms (about 2 feet)
  *			added delay of 1000 microseconds before each measurement - reduce crosstalk
@@ -99,7 +101,7 @@
 // Set the system mode to semi-automatic so that the robot will ruyn even if there is no Wi-Fi
 SYSTEM_MODE(SEMI_AUTOMATIC);
 
-#define version 3.14
+#define version 3.15
 
 // Global constants
 	// motor speeds
@@ -278,7 +280,9 @@ void loop() {
 	// process automonomous mode
 	if(currentMode == AUTO){
 
-		static int spinDirection = -1;
+		static int spinDirection = -1; // If the robot decides to spin to avoid a front
+									   // wall, we want to keep spinning in the same direction
+									   // and not oscillate back and forth.
 
 		// Take measurements
 		leftDistance = measureDistance(LEFT); // take ultrasonic range measurement left
@@ -341,12 +345,12 @@ void loop() {
 			else if (leftSideClear && !frontClear && rightSideClear) {
 				// front too close, sides open, spin some way
 
-				String actionMsg = "Avoid front with same spin ";
+				String actionMsg = "Avoid front with same pivot ";
 
 				if (!avoidFrontMode) { 
 					// first time after hitting front blocked with sides clear
 					avoidFrontMode = true ;  // will be set to false when it is clear forward
-					actionMsg = "Avoid front with spin:  ";
+					actionMsg = "Avoid front with pivot:  ";
 
 					// pick a direction
 					float randomDirection = random(2);
@@ -361,7 +365,10 @@ void loop() {
 				}
 
 				reportAction(actionMsg); 
-				pivotAway(spinDirection);
+				for (int i=0; i<4; i++) {
+					pivotAway(spinDirection);
+				}
+				robotStop(); // without this the pivot continues
 
 			}
 
@@ -636,6 +643,7 @@ float measureDistance(int direction){
 
 // function to pivot robot to avoid an obstacle
 //	direction 0:pivotleft   1:pivotright
+//  uses a delay to make the pivot significant
 void pivotAway(int direction) {
 	switch (direction) {
 		case 0:
@@ -655,17 +663,19 @@ void pivotAway(int direction) {
 ***************************************************************************/
 
 // function to pivot robot right
+// uses delay of 150
+// does not stop
 void robotPivotRight() {
 	robotRight(SLOW_SPEED);
 	delay(150);
-	//robotStop();
 }
 
 // function to pivot robot left
+// uses delay of 150
+// does not stop
 void robotPivotLeft() {
 	robotLeft(SLOW_SPEED);
     delay(150);
-	//robotStop();
 }
 
 // function to move robot forward at commanded speed
