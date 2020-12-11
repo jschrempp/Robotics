@@ -30,6 +30,9 @@
  *	back to the app when the robot is in AUTO mode.
  *  
  *	by: Bob Glicksman, Jim Schrempp, Team Practical Projects
+ *		version 3.16 12/11/2020
+ *			When blocked front robot enters "avoid front" mode. It will pivot in a 
+ *			direction until the front is clear, or the FRONTBLOCKED_LIMIT_MS is exceeded
  *		version 3.15 12/4/2020
  *			When blocked front but clear both sides, robot makes a significant pivot
  *		version 3.14 11/9/2020
@@ -101,7 +104,7 @@
 // Set the system mode to semi-automatic so that the robot will ruyn even if there is no Wi-Fi
 SYSTEM_MODE(SEMI_AUTOMATIC);
 
-#define version 3.15
+#define version 3.16
 
 // Global constants
 	// motor speeds
@@ -252,8 +255,8 @@ void setup() {
 void loop() {
   
 	static int currentMode = MANUAL_MODE;  // place in manual mode until commanded otherwise
-	static bool avoidFrontMode = false;
-	static long frontIsClearAtMS = 0;
+	static bool avoidFrontMode = false;   // when the front is first blocked, this gets set true
+	static long frontIsClearAtMS = 0;     // this will be the MS of the last time we found the front clear
 
 	int commandFromBT = 0;
 
@@ -284,6 +287,7 @@ void loop() {
 									   // wall, we want to keep spinning in the same direction
 									   // and not oscillate back and forth.
 
+		// step 1 -------------------------
 		// Take measurements
 		leftDistance = measureDistance(LEFT); // take ultrasonic range measurement left
 		rightDistance = measureDistance(RIGHT); // take ultrasonic range measurement right
@@ -297,6 +301,7 @@ void loop() {
 		digitalWrite(LEDpin, LEDStatus);
 		LEDStatus = ! LEDStatus;
 
+		// step 2 -------------------------
 		// decide if we are close on any sensor
 		bool leftSideClear = true;
 		bool rightSideClear = true;
@@ -312,22 +317,36 @@ void loop() {
 			frontClear =  false;
 		}
 
-		// if front is clear, note that
+		// if front is clear, note it.
 		if (frontClear) {
 			frontIsClearAtMS = millis();
 			avoidFrontMode = false; // reset avoidance becasue we're running now
 		} 
 
-		// if front has been blocked continuously, then give up
+		// step 3 -------------------------
+		// Decide what action to take
+
 		if (millis() - frontIsClearAtMS > FRONTBLOCKED_LIMIT_MS) {
+			// front has been blocked continuously, so we give up
 
 			robotStop();
 			reportAction("Front blocked time exceeded");
 			currentMode = MANUAL_MODE;
 
+		} else if (avoidFrontMode) {
+			// we are in avoid mode and will continue to pivot in one direction
+
+			reportAction("Avoid front mode, scanning"); 
+			for (int i=0; i<4; i++) {   
+				pivotAway(spinDirection);
+			}
+			//robotStop(); // without this the pivot continues
+
 		} else {
 
-			// Handle the sensor combinations
+			// we have not been blocked and we are in avoid front mode, so 
+			// decide what to do based on the sensors.
+			// Handle the sensor combinations to decide what to do
 
 			if (leftSideClear && frontClear && rightSideClear) {
 				// side and ahead are clear
