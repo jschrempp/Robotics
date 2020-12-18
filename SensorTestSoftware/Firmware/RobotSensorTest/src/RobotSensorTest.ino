@@ -80,8 +80,8 @@ static float g_leftDistance;  // the measured clearance to the left
 static float g_rightDistance; // the measured clearance to the right
 
 struct globalvars {
-	unsigned int sensorTimeout = 100;  // max measurement time is 20 ms or about 11 feet.
-	int sensorDelay = 10; // delay between sensor reads
+	unsigned int sensorTimeout = 5;  // max measurement time is 20 ms or about 11 feet.
+	int sensorDelay = 0; // delay between sensor reads
 } g; 
 
 
@@ -144,11 +144,11 @@ void loop() {
 	
 	switch (commandFromBT) {
 		case (DELAY_PLUS_10):    // change the current mode to manual
-			g.sensorDelay += 10;
+			g.sensorDelay += 1;
 			reportAction("delay between sensors now: " + String(g.sensorDelay));
 			break;
 		case (DELAY_MINUS_10):    // change the current mode to auto
-			g.sensorDelay -=10;	
+			g.sensorDelay -= 1;	
 			if (g.sensorDelay < 0) {
 				g.sensorDelay = 0;
 			}
@@ -347,7 +347,7 @@ float measureDistance(int direction){
 
 		// Clear the trigger pin
 		srWrite(pinToSense, 0);
-		delayMicroseconds(2);
+		delayMicroseconds(1000);
     
 		// Set the trigger pin HIGH for 10 micro seconds
 		srWrite(pinToSense, 1);
